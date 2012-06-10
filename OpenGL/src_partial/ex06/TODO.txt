@@ -1,0 +1,40 @@
+ex06 TODO
+=====================
+
+In this exercise you will practice using textures in OpenGL.
+All the code changes need to take place at ex06.cpp.
+
+You need to implement the rendering of a mesh using each of the techniques.
+
+1. Specify texture coordinates
+
+You need to specify for each vertex on the flag mesh its texture coordinate. 
+The flag mesh is specified in drawFlag() using immediate mode drawing. 
+Therefore before each glVertex() you need to specify 2D texture coordinates 
+for TUI0. You need to use the following local variables:
+
+	flagHeight - represents the height of the flag plane in object space
+	flagWidth - represents the width of the flag plane in object space
+	d - distance in object space between flag mesh columns 
+	
+2. Transfer texture objects
+The application generated identifiers for 3 texture objects in init(). These are stored in g_textures
+and available through enum: 
+
+	g_textures[TEX_FROM_FILE]
+	g_textures[TEX_GENERATED]
+	g_textures[TEX_FROM_FBO]
+	
+You need to transfer data to the texture objects on initialization using the 
+following functions:
+
+	initTexFromFile() - Loads a RGB 2D texture from disk. Transfer it.
+	initTexGenerated() - Allocates a blank RGBA 2D texture. 
+		Fill it with a pattern and transfer.
+	initTexFromFBO() - Create an FBO + RBO for depth. Link the FBO with the 
+		texture object.
+
+3. Render with textures
+To display the textures on the flag you must tell the OpenGL fixed-pipeline to use 
+the texture in the active TUIs for shading (2D texture in our case). 
+Additionally you need to set the filtering properties and the environment properties.

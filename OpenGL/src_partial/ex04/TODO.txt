@@ -1,0 +1,27 @@
+ex04 TODO
+=====================
+
+In this exercise you will experiment with the fixed-function lighting model. 
+Everything you need is found at ex04.cpp. 
+The GameLogic files contain player movement and aren't relevant.
+
+Lighting properties are already defined for you in init()
+Material properties are already defined for you in the drawing functions
+
+1. Set states
+First thing make the scene look more realistic by changing polygon mode to fill
+and turning on the Z-Buffer algorithm. 
+
+2. Set lights
+There are 3 light sources which are already configured in init(). You need to
+turn them on and position them. Each of the light sources needs to be specified  
+according to a different coordinate system: 
+	* Point light (GL_LIGHT2) in Object space (the jumping sphere drawn in drawObjects())
+	* Spot light (GL_LIGHT1) in Eye space (located on the camera) 
+	* Directed light (GL_LIGHT0) in World space (pointing down from the sky)
+
+3. Final touches
+Set the lighting model to have two sided lighting. Make the jumping sphere appear 
+glowing using the the material's emission property.  Finally make sure the jumping 
+light (GL_LIGHT2) doesn't affect the other objects drawn in drawObjects().
+

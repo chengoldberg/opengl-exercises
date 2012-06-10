@@ -1,0 +1,21 @@
+ex03 TODO
+=====================
+
+In this exercise you will practice transformations and drawing quadrics with GLU. 
+Everything you need is found at ex03.cpp. You can ignore the "GUI" functions 
+for now.
+
+1. Fractal Tree
+In drawTreeRec() you should complete drawing the tree. See instructions how to 
+implement a fractal tree in the slides. The properties defined by the user 
+are available as:
+	g_factor - determines the "shrinking" factor
+	g_splits - determines the number of branches (2 - 2D, 3 - 3D...)
+	g_angle - determines the angle between each child branch and his parent
+	g_maxDepth - determines the number of levels in the tree
+
+2. Camera
+in setupCamera() implement the view transformation. Use the rotation information
+found at g_rotX, g_rotY. These are updated by the mouse drag movement. That is 
+left-clicking while moving the mouse anywhere on the window.
+

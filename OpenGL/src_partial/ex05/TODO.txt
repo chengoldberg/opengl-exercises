@@ -1,0 +1,30 @@
+ex05 TODO
+=====================
+
+In this exercise you will practice the 3 accelerated drawing techniques in OpenGL.
+All the code changes need to take place at Mesh.cpp & Mesh.h.
+
+You need to implement the rendering of a mesh using each of the techniques.
+
+The Mesh Class supports loading a simple mesh format (OFF). It stores
+the vertices set in m_vertices, faces index set in m_faces. It 
+calculates the normals for each vertex and stores it in m_normals.
+It uses the Vec class for performing simple vector math.
+
+It provides placeholders for each of the rendering methods. initialization functions:
+
+	virtual void initDisplayList();
+	virtual void initVertexArray();
+	virtual void initVBO();
+
+and render functions:
+
+	virtual void renderImmediateMode();
+	virtual void renderDisplayList();
+	virtual void renderVertexArray();
+	virtual void renderVBO();
+
+The render() function calls whichever render mode is currently active (selected by F1-6 keys)	
+The default render mode, Immediate mode, is already implemented. You must implement all the rest.
+
+Finally, be sure to enable back-face culling in ex05.cpp init().
