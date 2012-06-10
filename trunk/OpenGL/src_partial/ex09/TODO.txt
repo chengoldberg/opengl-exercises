@@ -1,0 +1,41 @@
+ex09 TODO
+=====================
+
+In this exercise you will experiment with GLSL shaders and interaction 
+with the programmable pipeline.
+
+You are provided with several helping functions:
+
+string readfile(char *filename) - Reads a file into a std::string
+int checkProgramInfoLog(GLuint prog) - Prints program's compilation errors
+
+All the shader files are stored at "../res/shader/". 3 of their filename are 
+defined. Open each of the files to figure out their interface.
+
+1. Toon Shader
+A very simple shader that provides a plain lighting model that doesn't depend
+on an light-source. The shader filenames are at: SHADER_TOON_VERT/FRAG. 
+They require 2 colors and 2 thresholds for highlight and diffuse.
+
+2. Particle Wave Shader
+A simple shader that manipulates the color and position of a point over time
+in wave-like motion. The shader filenames are at: SHADER_PARTICLES_VERT/FRAG.
+They require 1 uniform for time and 1 attribute for starting parameters (angle,
+radius). 
+The time uniform can be set as g_frame and must be updated before every draw. 
+The attribute needs to be set each time a vertex is specified and should be
+consistant between frames. You need to create a static VBO at initialization and
+specify the attribute (note that vertex position isn't used by the shaders!)
+Tip: It might be easier to first try it using immediate mode and display list.
+
+3. Cloud Shader
+A shader for producing procedural cloud textures using 3D perlin noise. The shader
+filenames a at: SHADER_CLOUD_VERT/FRAG. They require a few uniforms as they specifiy.
+The only out of the ordinary uniform is Noise, which is a 3D sampler. Noise.cpp is 
+an implementation of 3D Perlin noise generator, and it is already used by the 
+application at init() and stores the 3D texture in g_noise3Dtex.
+
+4. Convolution Shader
+A shader that perfroms texture mapping + image processing using a passed kernel.
+The shader are at: SHADER_CONV_VERT/FRAG. They require a few uniform, including a 
+2D texture which you can load from file using loadTexFromFile().

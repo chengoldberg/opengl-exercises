@@ -1,0 +1,14 @@
+ex02 TODO
+=====================
+
+In this exercise you will practice drawing in 3D.
+
+1. Draw Cube
+Draw the entire cube face by face in drawRGBCube(). For each face make sure its 
+Front-side turns outwards. Color each vertex according to the RGB color space
+Hint: similar to vertex positions in object space.
+
+2. Multiple Cubes
+Draw 3 cubes side by side using translation transformation. Before drawing each
+one set front-face polygon mode to: points, lines and fill. Back-face polygons 
+should be rendered as points. Set large point size and line width.

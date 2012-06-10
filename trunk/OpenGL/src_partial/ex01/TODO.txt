@@ -1,0 +1,21 @@
+ex01 TODO
+=====================
+
+In this exercise you will practice changing states and basic drawing.
+
+1. Changing States
+Change OpenGL states to get a result similar to the image. All the changes
+you need to do are marked with "//TODO:". You only need to edit display().
+
+2. Drawing
+Look at the drawing functions and create new ones yourself or change them.
+Then edit drawTriangle() to make it rotate on the Y-axis over time. You can
+perform the rotation using the 2D function:
+
+	x = cos(alpha)*x - sin(alpha)*y
+	y = sin(alpha)*x + cos(alpha)*y
+	
+You can make it spin over time by using g_frame variable which is incremented
+every 16 milliseconds.
+
+

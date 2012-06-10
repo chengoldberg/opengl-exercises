@@ -1,0 +1,36 @@
+ex07 TODO
+=====================
+
+In this exercise you will practice using the stencil buffer.
+ex07 contains all the code you will need to change.
+
+The world contains a few objects: Floor, Grass, Mirror, Mirror border and some various geometrical shapes.
+You need to render a mirror of the world along the XZ plane, and make it 
+visible only through the mirror. 
+
+1. Mirror
+The world is drawn with the function drawWorld(). You should call it twice from
+display(): once regularly and once flipped. Before the second pass be sure 
+to set the stencil in the shape of the mirror using drawMirror(). 
+The reflected world should also contain the actor, drawn using drawActor().
+
+2. Shadow
+You should project all objects to the XZ plane in respect to the sun's position C.
+Since the sun is in infinity then the projection is orthographic and the 
+projection matrix that performs this is:
+	
+		    1    ,-Cx/Cy,0    ,0
+		T = 0    ,0     ,0    ,0
+		    0    ,-Cz/Cy,1    ,0
+		    0    ,0     ,0    ,1		    
+			
+You should take the shadow of all the objects in the scene except for the sun:
+		
+	drawMirrorBorder();
+	drawMirror();
+	drawObjects();
+	drawActor();
+	drawGrass();
+
+To draw the floor in ambient (needed for the shadow pass) call drawFloor() with 
+GL_LIGHT0 disabled.
