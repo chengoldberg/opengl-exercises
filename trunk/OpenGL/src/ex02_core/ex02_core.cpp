@@ -34,7 +34,7 @@ struct Point
 Point g_prevMouse;
 double g_rotY;
 double g_rotX;
-GLuint g_program;
+GLuint g_program, g_attribPosition, g_attribColor;
 GLuint g_vbObject, g_ebObject, g_cbObject;
 
 /*
@@ -182,13 +182,15 @@ void drawRGBCube()
 
 	// Bind and Draw
 	glBindBuffer(GL_ARRAY_BUFFER, g_vbObject);
-	glVertexPointer(3, GL_FLOAT, 0, BUFFER_OFFSET(0));
-	glBindBuffer(GL_ARRAY_BUFFER, g_cbObject);
-	glColorPointer(3, GL_FLOAT, 0, BUFFER_OFFSET(0));
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_ebObject);
+	glVertexAttribPointer(g_attribPosition, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));
 
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glEnableClientState(GL_COLOR_ARRAY);
+	glBindBuffer(GL_ARRAY_BUFFER, g_cbObject);
+	glVertexAttribPointer(g_attribColor, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));	
+
+	//glEnableClientState(GL_ATTRIB);
+	glEnableVertexAttribArray(g_attribPosition);
+	glEnableVertexAttribArray(g_attribColor);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_ebObject);
 	glDrawElements(GL_QUADS, cubeFacesNum*4, GL_UNSIGNED_INT, BUFFER_OFFSET(0));				
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -199,11 +201,13 @@ void initShaders() {
 	
 	const char* srcVert = 
 		"varying vec4  vColor;"
+		"attribute vec3 aPosition;"
+		"attribute vec3 aColor;"
 		""
 		"void main()"
 		"{"
-		"	vColor = gl_Color;"
-		"	gl_Position = ftransform();"
+		"	vColor = vec4(aColor,1);"
+		"	gl_Position = gl_ModelViewProjectionMatrix*vec4(aPosition,1);"
 		"}";
 
 	const char* srcFrag = 
@@ -211,10 +215,12 @@ void initShaders() {
 		""
 		"void main()"
 		"{"
-		"	gl_FragColor = vColor + vec4(1,0,0,0);"
+		"	gl_FragColor = vColor;"
 		"}";
 
 	g_program = createProgramFast(srcVert, srcFrag);	
+	g_attribPosition = glGetAttribLocation(g_program, "aPosition");
+	g_attribColor = glGetAttribLocation(g_program, "aColor");
 }
 
 
