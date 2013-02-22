@@ -15,11 +15,16 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+//#define GLM_PRECISION_HIG
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #include <string>
+#include "glm/glm.hpp"
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #define BUFFER_OFFSET(bytes)  ((GLubyte*) NULL + (bytes))
 
@@ -36,6 +41,7 @@ double g_rotY;
 double g_rotX;
 GLuint g_program, g_attribPosition, g_attribColor;
 GLuint g_vbObject, g_ebObject, g_cbObject;
+glm::mat4 g_modelView(1);
 
 /*
  * Rotate view along x and y axes 
@@ -235,29 +241,24 @@ void init()
 	// Place camera at (0,0,10)
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();			
-	glTranslated(0, 0, -10);	
+	g_modelView = glm::translate(g_modelView, glm::vec3(0,0,-10));
 }
-
+ 
 /**
 * Create camera transformation such that the model is rotated around the
 * world's X-axis and Y-axis. 
 */
-void setupCamera() {
+void setupCamera() 
+{	
+	glm::vec3 vecY(g_modelView[0][1], g_modelView[1][1], g_modelView[2][1]);
+	g_modelView = glm::rotate(g_modelView, (float)-g_rotX, vecY);
+	g_rotX = 0;	
 
-	double temp[16];
-
+	glm::vec3 vecX(g_modelView[0][0], g_modelView[1][0], g_modelView[2][0]);
+	g_modelView = glm::rotate(g_modelView, (float)-g_rotY, vecX);
+	g_rotY = 0;
 	glMatrixMode(GL_MODELVIEW);		
-	glGetDoublev(GL_MODELVIEW_MATRIX, temp);
-
-	// Rotate along temp in world coordinates
-	glRotated(-g_rotX, temp[1], temp[5], temp[9]);
-	g_rotX = 0;
-
-	glGetDoublev(GL_MODELVIEW_MATRIX, temp);
-
-	// Rotate along the (1 0 0) in world coordinates
-	glRotated(-g_rotY, temp[0], temp[4], temp[8]);			
-	g_rotY = 0;				
+	glLoadMatrixf(glm::value_ptr(g_modelView));
 }
 
 void display(void) {
