@@ -1,0 +1,48 @@
+<html>
+<body onload="webGLStart();">
+
+<script type="text/javascript" src="../webgl_common/webgl-utils.js"></script>
+<script type="text/javascript" src="../webgl_common/glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="../webgl_common/webgl_common.js"></script>
+<script type="text/javascript" src="../webgl_common/webgl_common_mesh.js"></script>
+<script type="text/javascript" src="main_script.js"></script>
+<script id="shader-vs" type="x-shader/x-vertex">
+
+attribute vec3 aVertex;
+uniform mat4 uMVMatrix;
+uniform mat4 uPMatrix; 
+
+//varying mediump vec3 vColor;
+
+void main(void)
+{
+	//vColor = uColor;
+	gl_Position = uPMatrix * uMVMatrix * vec4(aVertex,1.0);
+}
+
+</script>
+<script id="shader-fs" type="x-shader/x-fragment">
+
+uniform mediump vec3 uColor;
+//varying mediump vec3 vColor;
+
+void main(void)
+{
+   gl_FragColor = vec4( uColor, 1.0 );
+}
+</script>
+
+<h1>WebGL Exercise 01</h1>
+<canvas 
+	id="mycanvas"
+	width="500"
+	height="500">
+</canvas>
+
+<div>
+
+</div>
+
+</body>
+</html>
+
