@@ -1,0 +1,79 @@
+<html>
+<head>
+	<script type="text/javascript" src="../webgl_common/lib3rd/webgl-utils.js"></script>
+	<script type="text/javascript" src="../webgl_common/lib3rd/gl-matrix.js"></script>
+	<script type="text/javascript" src="../webgl_common/cglib/webgl-common.js"></script>
+	<script type="text/javascript" src="../webgl_common/cglib/webgl-simple-mesh.js"></script>
+	<script type="text/javascript" src="ex02.js"></script>
+	<script id="shader-vs" type="x-shader/x-vertex">
+		varying vec4 vColor;
+		attribute mediump vec3 aPosition;
+		attribute mediump vec3 aColor;
+		uniform mat4 uModelViewMatrix;
+		uniform mat4 uProjectionMatrix;
+		
+		void main()
+		{
+			vColor = vec4(aColor,1);
+			gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition,1);
+			gl_PointSize = 3.0;
+		}
+	</script>
+	<script id="shader-fs" type="x-shader/x-fragment">
+		varying mediump vec4 vColor;	
+		void main()
+		{
+			gl_FragColor = vColor;
+		}
+	</script>
+</head>
+<body onload="ex2.webGLStart();">
+<h1>WebGL Exercise 02</h1>
+<canvas 
+	id="mycanvas"
+	width="500"
+	height="500">
+</canvas>
+
+<script>
+
+function mousePosRelative(canvas, evt){
+	var rect = canvas.getBoundingClientRect();
+	return {
+		x: evt.clientX - rect.left,
+		y: evt.clientY - rect.top
+	};
+}
+
+canvas = document.getElementById('mycanvas');
+
+var isMouseDown = false;
+
+canvas.addEventListener('mousemove', function(evt) {
+	
+	var mousePos = mousePosRelative(canvas, evt);
+	if(isMouseDown) {
+		ex2.motionFunc(mousePos.x, mousePos.y);
+	}
+	
+});
+
+canvas.addEventListener('mousedown', function(evt) {
+	isMouseDown = true;
+	var mousePos = mousePosRelative(canvas, evt);
+	ex2.mouseFunc(mousePos.x, mousePos.y);
+});
+
+canvas.addEventListener('mouseup', function(evt) {
+	isMouseDown = false;
+});
+
+</script>
+
+<div>
+
+</div>
+
+</body>
+</html>
+
