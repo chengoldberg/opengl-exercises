@@ -63,18 +63,12 @@ var ex2 = function() {
 		if(!meshes.cube) {
 			loadRGBCube();
 		}
-		
-		if(!meshes.test) {
-			meshes.test = cglib.meshGenerator.genCylinderMesh(0.5,0.25,1,8,2);
-		}
-		meshes.test.setAttribLocs(attribs.position, attribs.color);
-		meshes.test.render();
-		
+			
 		meshes.cube.drawMode = drawMode;
 		
 		// Render
 		meshes.cube.setAttribLocs(attribs.position, attribs.color);
-		//meshes.cube.render();				
+		meshes.cube.render();				
 	}
 	
 	function initShaders() {
