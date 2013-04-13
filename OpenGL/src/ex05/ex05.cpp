@@ -368,7 +368,7 @@ void keyboardFunc(int key, int x, int y) {
 int main(int argc, char **argv) {
 
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 	glutInitWindowPosition(500, 500);
 	glutInitWindowSize(500, 500);
 

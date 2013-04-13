@@ -5,7 +5,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <GL\glew.h>
+#include <GL/glew.h>
 #include <cmath>
 
 void init3DNoiseTexture(int texSize, GLubyte* texPtr);
