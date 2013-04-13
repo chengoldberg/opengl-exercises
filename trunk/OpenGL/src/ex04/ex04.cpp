@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <GL/glut.h>
-#include "gameLogic.h"
+#include "GameLogic.h"
 
 GameLogic g_game;	
 int g_frame;
@@ -297,7 +297,7 @@ void timer(int value) {
 int main(int argc, char **argv) {
 
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 	glutInitWindowPosition(500, 500);
 	glutInitWindowSize(500, 500);
 

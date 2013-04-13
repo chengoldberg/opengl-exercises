@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
 #include "CTargaImage.h"
+#include <cstring>
 
 CTargaImage::CTargaImage() : m_pImageData(NULL)
 {
@@ -136,7 +137,7 @@ bool CTargaImage::Load(const char *filename)
 			else
 			{
 				// the number of non RLE pixels
-				length = unsigned char(id + 1);
+				length = (unsigned char)(id + 1);
 
 				while (length > 0)
 				{
