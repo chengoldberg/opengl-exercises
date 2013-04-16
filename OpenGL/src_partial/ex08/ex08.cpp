@@ -377,7 +377,7 @@ void keyboardUpFunc(int key, int x, int y) {
 int main(int argc, char **argv) {
 
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_MULTISAMPLE | GLUT_ALPHA);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH | GLUT_MULTISAMPLE | GLUT_ALPHA);
 	glutInitWindowPosition(500, 500);
 	glutInitWindowSize(320, 200);
 

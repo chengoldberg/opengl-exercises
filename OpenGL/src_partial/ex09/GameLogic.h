@@ -26,8 +26,8 @@ public:
 	double loc[2];
 
 	GameLogic() {
-		angle = 0;		
-		loc[0]=8;loc[1]=8;
+		angle = M_PI/2;		
+		loc[0]=0;loc[1]=8;
 	}
 
 	/**
@@ -86,11 +86,11 @@ public:
 		this->_isTurnLeft;
 	}
 
-	void GameLogic::setTurnLeft(bool value) {
+	void setTurnLeft(bool value) {
 		this->_isTurnLeft = value;		
 	}
 
-	bool GameLogic::isTurnRight() {
+	bool isTurnRight() {
 		this->_isTurnRight;
 	}
 
@@ -106,19 +106,19 @@ public:
 		this->_isStrafeLeft = value;
 	}
 
-	double* GameLogic::getPlayerLoc() {
+	double* getPlayerLoc() {
 		return loc;
 	}
 
-	void GameLogic::setPlayerLoc(double* loc) {		
+	void setPlayerLoc(double* loc) {		
 		loc = loc;
 	}
 
-	double GameLogic::getAngle() {
+	double getAngle() {
 		return angle;
 	}
 
-	void GameLogic::setAngle(double angle) {
+	void setAngle(double angle) {
 		this->angle = angle;
 	}
 	/*
@@ -135,7 +135,7 @@ public:
 		return BOARD_WIDTH;
 	}
 
-	int GameLogic::getBoardHeight() {
+	int getBoardHeight() {
 		return BOARD_HEIGHT;
 	}
 };
