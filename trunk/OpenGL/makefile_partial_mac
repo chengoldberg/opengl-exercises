@@ -1,0 +1,79 @@
+#===============================================================================
+# OpenGL Exercises Makefile
+#===============================================================================
+#
+# Dependencies: freeglut3-dev, libglew1.6-dev
+# Notes: might need to change code to include #include <GLUT/glut.h>  
+# LIBPATH += 
+# -L"/System/Library/Frameworks/OpenGL.framework/Libraries"
+# LIBRARIES = -lGL -lGLU -lm -lobjc -lstdc++ 
+
+CC = g++
+FLAGS = -Wall -g -framework OpenGL -framework GLUT -framework Foundation 
+SRCPATH = src_partial
+BINPATH = bin
+INCLUDEPATH = include
+BINEXT = _partial
+
+all : exercises
+
+#===============================================================================
+# Exercises
+#===============================================================================
+
+exercises : ex01 ex02 ex03 ex04 ex05 ex06 ex07 ex08 ex09
+
+ex01 : ex01.o
+	@echo Linking...c
+	$(CC) $(FLAGS) -o $(BINPATH)/$@$(BINEXT) $(BINPATH)/ex01.o -lglut
+
+ex01.o : $(SRCPATH)/ex01/ex01.cpp
+	$(CC) -c $(FLAGS) -o $(BINPATH)/$@ $(SRCPATH)/ex01/ex01.cpp
+
+ex02 : $(SRCPATH)/ex02/ex02.cpp
+	@echo Building $@...
+	$(CC) $(FLAGS) -o $(BINPATH)/$@$(BINEXT) $(SRCPATH)/$@/$@.cpp -lglut
+
+ex03 : $(SRCPATH)/ex03/ex03.cpp
+	@echo Building $@...
+	$(CC) $(FLAGS) -o $(BINPATH)/$@$(BINEXT) $(SRCPATH)/$@/$@.cpp -lglut -lGLU
+
+ex04 : $(SRCPATH)/ex04/ex04.cpp GameLogic
+	@echo Building $@...
+	$(CC) $(FLAGS) -o $(BINPATH)/$@$(BINEXT) $(SRCPATH)/$@/$@.cpp -lglut -lGLU -I$(SRCPATH)/$@/$@ $(BINPATH)/GameLogic.o
+
+GameLogic: $(SRCPATH)/ex04/GameLogic.cpp
+	$(CC) -c $(FLAGS) -o $(BINPATH)/$@.o $(SRCPATH)/ex04/$@.cpp -I$(SRCPATH)/ex04/$@
+
+ex05 : $(SRCPATH)/ex05/ex05.cpp $(SRCPATH)/ex05/GameLogic.h Mesh
+	@echo Building $@...
+	$(CC) $(FLAGS) -o $(BINPATH)/$@$(BINEXT) $(SRCPATH)/$@/$@.cpp -lglut -lGLU -lGLEW -I$(SRCPATH)/$@/$@ $(BINPATH)/GameLogic.o $(BINPATH)/Mesh.o $(BINPATH)/Vec.o
+
+Mesh : $(SRCPATH)/ex05/Mesh.cpp $(SRCPATH)/ex05/Mesh.h Vec
+	@echo Building $@...	
+	$(CC) -c $(FLAGS) -o $(BINPATH)/$@.o $(SRCPATH)/ex05/$@.cpp -lglut -lGLU -I$(SRCPATH)/ex05/$@ 
+
+Vec : $(SRCPATH)/ex05/Vec.cpp $(SRCPATH)/ex05/Vec.h
+	@echo Building $@...	
+	$(CC) -c $(FLAGS) -o $(BINPATH)/$@.o $(SRCPATH)/ex05/$@.cpp -I$(SRCPATH)/ex05/$@
+
+ex06 : $(SRCPATH)/ex06/ex06.cpp 
+	@echo Building $@...
+	$(CC) $(FLAGS) -o $(BINPATH)/$@$(BINEXT) $(SRCPATH)/$@/$@.cpp -lglut -lGLU -lGLEW -I$(INCLUDEPATH)
+
+ex07 : $(SRCPATH)/ex07/ex07.cpp 
+	@echo Building $@...
+	$(CC) $(FLAGS) -o $(BINPATH)/$@$(BINEXT) $(SRCPATH)/$@/$@.cpp -lglut -lGLU -lGLEW -I$(INCLUDEPATH) -I$(SRCPATH)/$@/$@ 
+
+ex08 : $(SRCPATH)/ex08/ex08.cpp 
+	@echo Building $@...
+	$(CC) $(FLAGS) -o $(BINPATH)/$@$(BINEXT) $(SRCPATH)/$@/$@.cpp -lglut -lGLU -lGLEW -I$(INCLUDEPATH) -I$(SRCPATH)/$@/$@ 
+
+ex09 : $(SRCPATH)/ex09/ex09.cpp $(SRCPATH)/ex09/noise.cpp
+	@echo Building $@...
+	$(CC) $(FLAGS) -o $(BINPATH)/$@$(BINEXT) $(SRCPATH)/$@/$@.cpp $(SRCPATH)/$@/noise.cpp -lglut -lGLU -lGLEW -I$(INCLUDEPATH) -I$(SRCPATH)/$@/$@ 
+
+# clean intermediate files
+clean : 
+	rm $(BINPATH)/*.o
+
