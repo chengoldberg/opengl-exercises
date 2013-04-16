@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <GL/glut.h>
 #define _USE_MATH_DEFINES
-#include "gameLogic.h"
+#include "GameLogic.h"
 
 #define UPDATE_INTERVAL_MS 16
 
