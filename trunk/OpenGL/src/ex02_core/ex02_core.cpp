@@ -39,9 +39,9 @@ struct Point
 Point g_prevMouse;
 double g_rotY;
 double g_rotX;
-GLuint g_program, g_attribPosition, g_attribColor;
-GLuint g_vbObject, g_ebObject, g_cbObject;
-glm::mat4 g_modelView(1);
+GLuint g_program, g_attribPosition, g_attribColor, g_uniformModelViewMatrix, g_uniformProjectionMatrix;
+GLuint g_vbObject, g_ebObject, g_cbObject, g_vao;
+glm::mat4 g_modelView(1), g_projection;
 
 /*
  * Rotate view along x and y axes 
@@ -77,7 +77,7 @@ bool myCompileShader(GLuint shader) {
 
 	glCompileShader(shader);
 
-	glGetObjectParameterivARB(shader, GL_COMPILE_STATUS, &compiled);
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
 	GLint blen = 0;	GLsizei slen = 0;
 
 	glGetShaderiv(shader, GL_INFO_LOG_LENGTH , &blen);       
@@ -132,75 +132,82 @@ GLuint createProgramFast(const char* srcVert, const char* srcFrag) {
 	return program;
 }
 
+const unsigned int cubeVerticesNum = 8;
+const unsigned int cubeFacesNum = 2*6;
 
-/**
- * Draw a unit size RGB cube
- */
-void drawRGBCube() 
+void loadRGBCube()
 {
-	const unsigned int cubeVerticesNum = 8;
-	const unsigned int cubeFacesNum = 6;
+	float vertices[cubeVerticesNum][3] = {
+		{-1,-1,-1}, //0
+		{-1,-1,+1}, //1
+		{-1,+1,-1}, //2
+		{-1,+1,+1}, //3
+		{+1,-1,-1}, //4
+		{+1,-1,+1}, //5
+		{+1,+1,-1}, //6
+		{+1,+1,+1}};//7
 
-	// Allocate Cube's vertex data on GPU
-	if(g_vbObject == 0)
-	{		
-		float vertices[cubeVerticesNum][3] = {
-			{-1,-1,-1}, //0
-			{-1,-1,+1}, //1
-			{-1,+1,-1}, //2
-			{-1,+1,+1}, //3
-			{+1,-1,-1}, //4
-			{+1,-1,+1}, //5
-			{+1,+1,-1}, //6
-			{+1,+1,+1}};//7
+	float colors[cubeVerticesNum][3] = {
+		{0,0,0}, //0
+		{0,0,1}, //1
+		{0,1,0}, //2
+		{0,1,1}, //3
+		{1,0,0}, //4
+		{1,0,1}, //5
+		{1,1,0}, //6
+		{1,1,1}};//7
+	
+	GLuint faces[cubeFacesNum][3] = {
+		{0,4,5},{5,1,0},
+		{0,1,3},{3,2,0},
+		{0,2,6},{6,4,0},
+		{7,6,2},{2,3,7},
+		{7,5,4},{4,6,7},
+		{7,3,1},{1,5,7}};
 
-		float colors[cubeVerticesNum][3] = {
-			{0,0,0}, //0
-			{0,0,1}, //1
-			{0,1,0}, //2
-			{0,1,1}, //3
-			{1,0,0}, //4
-			{1,0,1}, //5
-			{1,1,0}, //6
-			{1,1,1}};//7
-		
-		GLuint faces[cubeFacesNum][4] = {
-			{0,4,5,1},
-			{0,1,3,2},
-			{0,2,6,4},
-			{7,6,2,3},
-			{7,5,4,6},
-			{7,3,1,5}};
+	// Transfer data to GPU
+	glGenBuffers(1, &g_vbObject);
+	glBindBuffer(GL_ARRAY_BUFFER, g_vbObject);
+	glBufferData(GL_ARRAY_BUFFER, cubeVerticesNum*3*sizeof(float), vertices, GL_STATIC_DRAW);
 
-		// Hopper
-		glGenBuffers(1, &g_vbObject);
-		glBindBuffer(GL_ARRAY_BUFFER, g_vbObject);
-		glBufferData(GL_ARRAY_BUFFER, cubeVerticesNum*3*sizeof(float), vertices, GL_STATIC_DRAW);
+	glGenBuffers(1, &g_cbObject);
+	glBindBuffer(GL_ARRAY_BUFFER, g_cbObject);
+	glBufferData(GL_ARRAY_BUFFER, cubeVerticesNum*3*sizeof(float), colors, GL_STATIC_DRAW);	
 
-		glGenBuffers(1, &g_cbObject);
-		glBindBuffer(GL_ARRAY_BUFFER, g_cbObject);
-		glBufferData(GL_ARRAY_BUFFER, cubeVerticesNum*3*sizeof(float), colors, GL_STATIC_DRAW);	
+	glGenBuffers(1, &g_ebObject);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_ebObject);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, cubeFacesNum*3*sizeof(unsigned int), faces, GL_STATIC_DRAW);
+	
+	// Keep all vertex attribute states in VAO
+	glGenVertexArrays(1, &g_vao);
+	glBindVertexArray(g_vao);
 
-		glGenBuffers(1, &g_ebObject);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_ebObject);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, cubeFacesNum*4*sizeof(unsigned int), faces, GL_STATIC_DRAW);
-	}
-
-	// Bind and Draw
 	glBindBuffer(GL_ARRAY_BUFFER, g_vbObject);
 	glVertexAttribPointer(g_attribPosition, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));
 
 	glBindBuffer(GL_ARRAY_BUFFER, g_cbObject);
 	glVertexAttribPointer(g_attribColor, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));	
 
-	//glEnableClientState(GL_ATTRIB);
 	glEnableVertexAttribArray(g_attribPosition);
-	glEnableVertexAttribArray(g_attribColor);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_ebObject);
-	glDrawElements(GL_QUADS, cubeFacesNum*4, GL_UNSIGNED_INT, BUFFER_OFFSET(0));				
+	glEnableVertexAttribArray(g_attribColor);		
 
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+}
+
+/**
+ * Draw a unit size RGB cube
+ */
+void drawRGBCube() 
+{
+	// Define the RGB cube on the GPU
+	if(g_vao == 0)
+		loadRGBCube();
+
+	// Bind and Draw
+	glBindVertexArray(g_vao);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_ebObject);
+	glDrawElements(GL_TRIANGLES, cubeFacesNum*3, GL_UNSIGNED_INT, BUFFER_OFFSET(0));				
+	glBindVertexArray(0);
 }
 
 void initShaders() {
@@ -209,11 +216,13 @@ void initShaders() {
 		"varying vec4  vColor;"
 		"attribute vec3 aPosition;"
 		"attribute vec3 aColor;"
+		"uniform mat4 uModelViewMatrix;"
+		"uniform mat4 uProjectionMatrix;"
 		""
 		"void main()"
 		"{"
 		"	vColor = vec4(aColor,1);"
-		"	gl_Position = gl_ModelViewProjectionMatrix*vec4(aPosition,1);"
+		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition,1);"
 		"}";
 
 	const char* srcFrag = 
@@ -227,6 +236,8 @@ void initShaders() {
 	g_program = createProgramFast(srcVert, srcFrag);	
 	g_attribPosition = glGetAttribLocation(g_program, "aPosition");
 	g_attribColor = glGetAttribLocation(g_program, "aColor");
+	g_uniformModelViewMatrix = glGetUniformLocation(g_program, "uModelViewMatrix");
+	g_uniformProjectionMatrix = glGetUniformLocation(g_program, "uProjectionMatrix");
 }
 
 
@@ -239,8 +250,6 @@ void init()
 	glClearColor(0.5f, 0.5f, 0.5f, 0);
 
 	// Place camera at (0,0,10)
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();			
 	g_modelView = glm::translate(g_modelView, glm::vec3(0,0,-10));
 }
  
@@ -256,17 +265,13 @@ void setupCamera()
 
 	glm::vec3 vecX(g_modelView[0][0], g_modelView[1][0], g_modelView[2][0]);
 	g_modelView = glm::rotate(g_modelView, (float)-g_rotY, vecX);
-	g_rotY = 0;
-	glMatrixMode(GL_MODELVIEW);		
-	glLoadMatrixf(glm::value_ptr(g_modelView));
+	g_rotY = 0;	
 }
 
-void display(void) {
-
-	// Clear color buffer
-	glClear(GL_COLOR_BUFFER_BIT);		
-
+void display(void) 
+{
 	//glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
 
 	// Clear FrameBuffer
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);		
@@ -278,32 +283,35 @@ void display(void) {
 	setupCamera();		
 
 	// Save camera transformation
-	glPushMatrix();
+	glm::mat4 saveMat = g_modelView;
 
 	// Init states		
-	glPolygonMode(GL_BACK, GL_POINT);
-	glLineWidth(5);
+	//glPolygonMode(GL_BACK, GL_POINT); // Not allowed anymore
+	glLineWidth(1); // Line width can't be larger than 1 (!)
 	glPointSize(5);
 
 	// Draw Line RGB cube
-	glPolygonMode(GL_FRONT, GL_LINE);		
-	glTranslated(-3, 0, 0);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);		
+	g_modelView = glm::translate(g_modelView, glm::vec3(-3,0,0));
+	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));
 	drawRGBCube();
 
 	// Draw Fill RGB cube
 	glPointSize(1);
-	glPolygonMode(GL_FRONT, GL_FILL);		
-	glTranslated(3, 0, 0);		
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);		
+	g_modelView = glm::translate(g_modelView, glm::vec3(3,0,0));
+	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));
 	drawRGBCube();
 	glPointSize(5);
 
 	// Draw Point RGB cube
-	glPolygonMode(GL_FRONT, GL_POINT);
-	glTranslated(3, 0, 0);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+	g_modelView = glm::translate(g_modelView, glm::vec3(3,0,0));
+	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));
 	drawRGBCube();
 
 	// Load camera transformation
-	glPopMatrix();
+	g_modelView = saveMat;
 
 	// Swap double buffer
 	glutSwapBuffers();
@@ -314,14 +322,15 @@ void reshape(int width, int height) {
 	// Setup viewport
 	glViewport(0,0,width,height);
 
-	// Create projection transformation
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-
-	double w,h;
+	float w,h;
 	w = 10;
-	h = 10*((double)height/width);
-	glOrtho(-w/2, w/2, -h/2, h/2, -1, 1000);					
+	h = 10*((float)height/width);	
+	g_projection = glm::ortho(-w/2.0f, w/2.0f, -h/2.0f, h/2.0f, -1.0f, 1000.0f);
+
+	// Create projection transformation	
+	glUseProgram(g_program); // Remember to use program when setting variables
+	glUniformMatrix4fv(g_uniformProjectionMatrix, 1, false, glm::value_ptr(g_projection));
+	glUseProgram(0);
 }
 
 void motionFunc(int x, int y) {
@@ -346,16 +355,16 @@ void mouseFunc(int button, int state, int x, int y) {
 
 int main(int argc, char **argv) {
 
-	//glutInitContextVersion(3,3);
-	//glutInitContextProfile(GLUT_CORE_PROFILE);
-	//glutInitContextFlags(GLUT_DEBUG);
+	glutInitContextVersion(3,3);
+	glutInitContextProfile(GLUT_CORE_PROFILE);
+	glutInitContextFlags(GLUT_DEBUG);
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
 	glutInitWindowPosition(500, 500);
 	glutInitWindowSize(500, 500);
 
-	glutCreateWindow("ex2 - Drawing RGB Cube");
+	glutCreateWindow("ex2 - Drawing RGB Cube - Core profile");
 
 	glutReshapeFunc(reshape);
 	glutDisplayFunc(display);
@@ -365,6 +374,9 @@ int main(int argc, char **argv) {
 	//glutInit
 	//glutFullScreen();
 
+	// Glew limitation 
+	// Ref: http://openglbook.com/glgenvertexarrays-access-violationsegfault-with-glew/
+	glewExperimental = GL_TRUE; 
 	glewInit();
 
 	init();

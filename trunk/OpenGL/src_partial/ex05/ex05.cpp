@@ -115,7 +115,7 @@ void drawCurve() {
 		glEnable(GL_LIGHTING);		
 		glEndList();								
 	}		
-	g_curveListID = glGenLists(1);
+	glCallList(g_curveListID);
 }
 
 void drawAirplane(Airplane* airplane) {
