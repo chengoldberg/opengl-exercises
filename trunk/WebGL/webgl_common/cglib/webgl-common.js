@@ -93,3 +93,46 @@ cglib.WebGLCommon = function() {
 		loadFile : loadFile
 		};
 } ();
+
+cglib.Canvas2DTexture = {
+	textureCanvas: undefined,
+	ctx: undefined, 
+
+	init: function(width, height) {
+		jQuery('<canvas id="auxCanvas" width="512" height="512" style="display:none"></canvas>').appendTo("body");
+		this.textureCanvas = jQuery("#auxCanvas")[0];
+		this.ctx = this.textureCanvas.getContext('2d');		
+	},
+
+	drawToTexture: function(gl, drawFunc, auxTex) {			
+		this.ctx.clearRect(0, 0, this.textureCanvas.width, this.textureCanvas.height);
+		
+		if(drawFunc)
+			drawFunc(this.ctx);
+
+		if(!auxTex)
+			auxTex = gl.createTexture();						
+
+		gl.bindTexture(gl.TEXTURE_2D, auxTex);
+		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.textureCanvas);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+		gl.bindTexture(gl.TEXTURE_2D, null);
+
+		return auxTex;
+	},
+
+	// Foundation helpers
+	extend: function(props) {
+        var prop, obj;
+        obj = Object.create(this);
+        for(prop in props) {
+            if(props.hasOwnProperty(prop)) {
+                obj[prop] = props[prop];
+            }
+        }
+        return obj;
+	},
+
+}

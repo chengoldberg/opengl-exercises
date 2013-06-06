@@ -40,7 +40,7 @@ var ex03 = function() {
 	function changeProperty(delta) {
 		currentProperty += delta;
 		currentProperty = Math.max(currentProperty,0);
-		currentProperty = Math.min(currentProperty,4);
+		currentProperty = Math.min(currentProperty,3);
 		invalidatePropertyMenu();
 	}
 
@@ -54,7 +54,7 @@ var ex03 = function() {
 
 	function invalidatePropertyMenu() {
 
-		canvas2DTexture.drawToTexture(function(ctx) {
+		canvas2DTexture.drawToTexture(gl, function(ctx) {
 			var fontSize = 24;
 			ctx.font = fontSize + "px monospace";
 			ctx.textBaseline = "top";
@@ -221,7 +221,7 @@ var ex03 = function() {
 	    initShaders();
 	    initMeshes();
 
-	    canvas2DTexture = Canvas2DTexture.extend()
+	    canvas2DTexture = cglib.Canvas2DTexture.extend()
 	    canvas2DTexture.init(512,512);
 	    textures.textTexture = gl.createTexture();
 	    invalidatePropertyMenu();
@@ -285,7 +285,10 @@ var ex03 = function() {
 			case 40:
 			changeProperty(+1);
 			break;
-		}
+			default:
+			return false;
+		}		
+		return true;
 	}
 
 	function init(_container) {

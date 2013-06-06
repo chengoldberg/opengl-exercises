@@ -141,7 +141,8 @@ cglib.container = {
 		this.keyDownFunc = callback;
 		var that = this;
 		jQuery(document).keydown(function(event) {
-			that.keyDownFunc(event.which);	
+			if(that.keyDownFunc(event.which))
+				event.preventDefault();	
 		});
 	},
 
