@@ -13,6 +13,8 @@ var ex03 = function() {
 	var rotY = 0;
 	var prevMouse = undefined;
     var meshes = {};
+    var textures = {};
+    var canvas2DTexture = undefined;
 		
 	var properties = {
 		angle:45,
@@ -52,7 +54,7 @@ var ex03 = function() {
 
 	function invalidatePropertyMenu() {
 
-		drawToTexture(function(ctx) {
+		canvas2DTexture.drawToTexture(function(ctx) {
 			var fontSize = 24;
 			ctx.font = fontSize + "px monospace";
 			ctx.textBaseline = "top";
@@ -70,7 +72,7 @@ var ex03 = function() {
 					ctx.fillStyle = "#000000";		
 				ctx.fillText(lines[i], 0, fontSize*i);		
 			}
-		});
+		}, textures.textTexture);
 	}
 
 	function setTextureEnabled(val) {
@@ -145,7 +147,7 @@ var ex03 = function() {
 	    gl.uniformMatrix4fv(uniforms.projectionMatrix, false, projectionMatrix);
 	    gl.uniformMatrix4fv(uniforms.modelViewMatrix, false, modelViewMatrix);
 	    gl.activeTexture(gl.TEXTURE0);
-	    gl.bindTexture(gl.TEXTURE_2D, auxTex);
+	    gl.bindTexture(gl.TEXTURE_2D, textures.textTexture);
 	    gl.uniform1i(uniforms.texture0, 0);
 
 	    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -218,6 +220,10 @@ var ex03 = function() {
 		gl = context;
 	    initShaders();
 	    initMeshes();
+
+	    canvas2DTexture = Canvas2DTexture.extend()
+	    canvas2DTexture.init(512,512);
+	    textures.textTexture = gl.createTexture();
 	    invalidatePropertyMenu();
 	    
 		// Set background color to gray    
