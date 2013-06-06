@@ -1,5 +1,6 @@
-var ex2 = function() {
+var ex02 = function() {
 	
+	var container = undefined;
 	var gl = undefined;
 	var shaders = {};
 	var uniforms = {};
@@ -51,7 +52,7 @@ var ex2 = function() {
 			7,3,1,	1,5,7];
 		
 		meshes.cube = cglib.simpleMesh.extend();
-		meshes.cube.init(vertices, faces);
+		meshes.cube.init(gl, vertices, faces);
 		meshes.cube.colors = colors;	
 	}
 	
@@ -74,11 +75,11 @@ var ex2 = function() {
 	function initShaders() {
 	
 		// Compile shaders
-	    var vertexShader = cglib.WebGLCommon.compileShader(shaders.vs, gl.VERTEX_SHADER);
-	    var fragmentShader = cglib.WebGLCommon.compileShader(shaders.fs, gl.FRAGMENT_SHADER);
+	    var vertexShader = cglib.WebGLCommon.compileShader(gl, shaders.vs, gl.VERTEX_SHADER);
+	    var fragmentShader = cglib.WebGLCommon.compileShader(gl, shaders.fs, gl.FRAGMENT_SHADER);
 	    
 	    // Link program
-	    shaderProgram = cglib.WebGLCommon.linkProgram(vertexShader, fragmentShader);
+	    shaderProgram = cglib.WebGLCommon.linkProgram(gl, vertexShader, fragmentShader);
 	    gl.useProgram(shaderProgram);
 	   
 	    // Store attrib IDs
@@ -102,17 +103,8 @@ var ex2 = function() {
 		mat4.translate(wvMatrix, wvMatrix, vec4.fromValues(0, 0, -10, 0));	
 	}
 	
-	function initGL(canvas) {
-	    try {
-	        gl = canvas.getContext("experimental-webgl");
-	        gl.viewportWidth = canvas.width;
-	        gl.viewportHeight = canvas.height;
-	    } catch (e) {
-	    }
-	    if (!gl) {
-	        alert("Could not initialise WebGL, sorry :-(");
-	    }
-	    cglib.WebGLCommon.bindContext(gl);
+	function initGL(context) {
+		gl = context;
 	    initShaders();
 	    
 		// Set background color to gray    
@@ -185,23 +177,26 @@ var ex2 = function() {
 	function renderScene() {	
 	    animate();
 	    setupProjectionAndViewport();
-	    renderWorld();
-	    requestAnimFrame(renderScene);
+	    renderWorld();	    
 	}
 	
-	function webGLStart() {
-	    var canvas = document.getElementById("mycanvas");
-	    
+	function init(_container) {
+		container = _container;
+	    container.setDisplay(renderScene);	    
+	    container.loadResources(['ex02.vert', 'ex02.frag']);
+	}
+
+	function start() {
 	    // Load resources
 	    shaders = {};
-	    shaders.fs = cglib.WebGLCommon.getShaderScript(gl,"shader-fs");
-	    shaders.vs = cglib.WebGLCommon.getShaderScript(gl,"shader-vs");
-	     
-	    initGL(canvas);         
+	    shaders.fs = container.getShaderText('ex02.frag');
+	    shaders.vs = container.getShaderText('ex02.vert');
+
+	    initGL(container.getContext());         
 	    
 	    initWorld();
 	    
-	    renderScene();
+	    renderScene();		
 	}
 	
 	function mouseFunc(x, y) {
@@ -231,7 +226,8 @@ var ex2 = function() {
 	}
 	
 	return {
-		webGLStart : webGLStart,
+		init : init,
+		start : start,
 		mouseFunc : mouseFunc,
 		motionFunc : motionFunc
 	};

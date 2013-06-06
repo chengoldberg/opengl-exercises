@@ -7,7 +7,7 @@ var cglib = cglib || {};
 cglib.simpleMesh = {		
 	faces : {},
 	vertices : {},
-	colors : {},
+	colors : undefined,
 	
 	facesBufferId : undefined,
 	verticesBufferId : undefined,		
@@ -17,10 +17,10 @@ cglib.simpleMesh = {
 	colorsAttribLoc : undefined,
 	gl : undefined,
 	
-	init : function(vertices, faces) {
+	init : function(gl, vertices, faces) {
+		this.gl = gl;
 		this.faces = faces;
 		this.vertices = vertices;
-		this.gl = cglib.WebGLCommon.getCurrentContext();
 	},
 
 	setAttribLocs : function(verticesAttribLoc, colorsAttribLoc) {
