@@ -13,13 +13,7 @@
 		id="mycanvas"
 		width="512"
 		height="512">
-	</canvas>
-	<canvas 
-		id="auxCanvas"
-		width="512"
-		height="512"
-		style="display:none">
-	</canvas>
+	</canvas>	
 
 	<script type="text/javascript">
   		canvas = jQuery("#mycanvas")[0];
@@ -27,28 +21,50 @@
   		container.init(canvas);
   		container.loadApp('ex03', 'ex03.js', './');		
 
-		textureCanvas = jQuery("#auxCanvas")[0];
-		var ctx = textureCanvas.getContext('2d');		
-		
-		var auxTex = undefined;
-		function drawToTexture(drawFunc) {			
-			ctx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
-			
-			if(drawFunc)
-				drawFunc(ctx);
+		Canvas2DTexture = {
+			textureCanvas: undefined,
+			ctx: undefined, 
 
-			gl = container.getContext();
+			init: function(width, height) {
+				jQuery('<canvas id="auxCanvas" width="512" height="512" style="display:none"></canvas>').appendTo("body");
+				this.textureCanvas = jQuery("#auxCanvas")[0];
+				this.ctx = this.textureCanvas.getContext('2d');		
+			},
 
-			if(!auxTex)
-				auxTex = gl.createTexture();						
+			drawToTexture: function(drawFunc, auxTex) {			
+				this.ctx.clearRect(0, 0, this.textureCanvas.width, this.textureCanvas.height);
+				
+				if(drawFunc)
+					drawFunc(this.ctx);
 
-			gl.bindTexture(gl.TEXTURE_2D, auxTex);
-			gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, textureCanvas);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-			gl.bindTexture(gl.TEXTURE_2D, null);
-		}				
+				gl = container.getContext();
+
+				if(!auxTex)
+					auxTex = gl.createTexture();						
+
+				gl.bindTexture(gl.TEXTURE_2D, auxTex);
+				gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+				gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.textureCanvas);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+				gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+				gl.bindTexture(gl.TEXTURE_2D, null);
+
+				return auxTex;
+			},
+
+			// Foundation helpers
+			extend: function(props) {
+		        var prop, obj;
+		        obj = Object.create(this);
+		        for(prop in props) {
+		            if(props.hasOwnProperty(prop)) {
+		                obj[prop] = props[prop];
+		            }
+		        }
+		        return obj;
+			},
+
+		}
 
 	</script>
 
