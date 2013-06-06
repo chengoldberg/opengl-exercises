@@ -15,28 +15,56 @@ var ex03 = function() {
     var meshes = {};
 		
 	var properties = {
-		maxLevel:4,
-		angle:Math.PI/5.0,
-		splits:2,
-		factor:1
+		angle:45,
+		maxLevel:4,		
+		factor:0.6,
+		splits:2,		
 	};
+	var propertiesSteps = {
+		angle:1,
+		maxLevel:1,		
+		factor:0.01,
+		splits:1,		
+	};	
+	var propertiesRanges = {
+		angle:[0,180],
+		maxLevel:[0,8],		
+		factor:[0.1,1],
+		splits:[0,8],		
+	};	
+	var propertiesNames	= ['angle','maxLevel','factor','splits'];	
+	var currentProperty = 0;
 
-	function propertyChanged() {
+	function changeProperty(delta) {
+		currentProperty += delta;
+		currentProperty = Math.max(currentProperty,0);
+		currentProperty = Math.min(currentProperty,4);
+		invalidatePropertyMenu();
+	}
+
+	function changePropertyValue(delta) {
+		var name = propertiesNames[currentProperty];
+		properties[name] += delta*propertiesSteps[name];
+		properties[name] = Math.max(properties[name], propertiesRanges[name][0]);
+		properties[name] = Math.min(properties[name], propertiesRanges[name][1]);
+		invalidatePropertyMenu();
+	}
+
+	function invalidatePropertyMenu() {
 
 		drawToTexture(function(ctx) {
 			var fontSize = 24;
-			var selectedIndex = 1;
 			ctx.font = fontSize + "px monospace";
 			ctx.textBaseline = "top";
 
-			lines = [
-				"maxLevel " + properties.maxLevel,
+			lines = [				
 				"angle " + properties.angle,
-				"splits" + properties.splits,
-				"factor" + properties.factor];
+				"maxLevel " + properties.maxLevel,				
+				"factor " + properties.factor,
+				"splits " + properties.splits];
 
 			for(var i=0; i<4; ++i) {
-				if(i == selectedIndex) 
+				if(i == currentProperty) 
 					ctx.fillStyle = "#FF0000";		
 				else
 					ctx.fillStyle = "#000000";		
@@ -77,7 +105,7 @@ var ex03 = function() {
 		mat4.scale(mwMatrix, mwMatrix, vec3.fromValues(properties.factor, properties.factor, properties.factor));
 		for(var i=0; i<properties.splits; ++i) {
 			var saveMat = mat4.clone(mwMatrix);	
-			mat4.rotate(mwMatrix, mwMatrix, properties.angle, vec3.fromValues(0,1,0));
+			mat4.rotate(mwMatrix, mwMatrix, properties.angle*Math.PI/180.0, vec3.fromValues(0,1,0));
 			updateMVP();	
 			drawTree(level+1);
 			mwMatrix = saveMat;
@@ -190,6 +218,7 @@ var ex03 = function() {
 		gl = context;
 	    initShaders();
 	    initMeshes();
+	    invalidatePropertyMenu();
 	    
 		// Set background color to gray    
 	    gl.clearColor(1, 1, 1, 1); 
@@ -235,9 +264,28 @@ var ex03 = function() {
 	    renderWorld();	    
 	}
 	
+	function keyDown(keyCode) {
+		switch(keyCode)
+		{
+			case 37:
+			changePropertyValue(-1);
+			break;
+			case 39:
+			changePropertyValue(+1);
+			break;
+			case 38:
+			changeProperty(-1);
+			break;
+			case 40:
+			changeProperty(+1);
+			break;
+		}
+	}
+
 	function init(_container) {
 		container = _container;
 	    container.setDisplay(renderScene);	    
+	    container.setKeyDown(keyDown);
 	    container.loadResources(['ex03.vert', 'ex03.frag']);
 	}
 
@@ -259,7 +307,7 @@ var ex03 = function() {
 	}
 	
 	function motionFunc(x, y) {
-		propertyChanged();
+
 		// Calc difference from previous mouse location
 		if(!prevMouse)
 			prevMouse = {"x":x, "y":y};
