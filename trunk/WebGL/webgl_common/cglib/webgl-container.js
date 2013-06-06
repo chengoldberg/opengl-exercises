@@ -9,6 +9,9 @@ cglib.container = {
 	jsURL : undefined,
 	app : undefined,
 	displayFunc : undefined,
+	keyPressedFunc : undefined,	
+	keyDownFunc : undefined,
+	keyUpFunc : undefined,
 	resourcesURL : undefined,
 	contextGL : undefined,
 	wrappedDisplayLoop : undefined,
@@ -124,6 +127,22 @@ cglib.container = {
 
 	setDisplay : function(callback) {
 		this.displayFunc = callback;
+	},
+
+	setKeyPressed : function(callback) {
+		this.keyPressedFunc = callback;
+		var that = this;
+		jQuery(document).keypress(function(event) {
+			that.keyPressedFunc(event.which);	
+		});
+	},
+
+	setKeyDown : function(callback) {
+		this.keyDownFunc = callback;
+		var that = this;
+		jQuery(document).keydown(function(event) {
+			that.keyDownFunc(event.which);	
+		});
 	},
 
 	loadResources : function(shaders) {

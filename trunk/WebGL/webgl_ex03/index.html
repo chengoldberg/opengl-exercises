@@ -28,13 +28,14 @@
   		container.loadApp('ex03', 'ex03.js', './');		
 
 		textureCanvas = jQuery("#auxCanvas")[0];
-		var ctx = textureCanvas.getContext('2d');
-
+		var ctx = textureCanvas.getContext('2d');		
+		
 		var auxTex = undefined;
 		function drawToTexture(drawFunc) {			
 			ctx.clearRect(0, 0, textureCanvas.width, textureCanvas.height);
 			
-			drawFunc(ctx);
+			if(drawFunc)
+				drawFunc(ctx);
 
 			gl = container.getContext();
 
@@ -47,7 +48,7 @@
 			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 			gl.bindTexture(gl.TEXTURE_2D, null);
-		}		
+		}				
 
 	</script>
 
