@@ -32,6 +32,7 @@ cglib.WebGLCommon = function() {
 	    gl.linkProgram(program);
 	
 	    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+	    	alert(gl.getProgramInfoLog(program));
 	        alert("Could not initialise shaders");
 	    }	
 	    return program;

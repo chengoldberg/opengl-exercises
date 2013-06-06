@@ -8,13 +8,16 @@ cglib.simpleMesh = {
 	faces : {},
 	vertices : {},
 	colors : undefined,
+	texCoords : undefined,
 	
 	facesBufferId : undefined,
 	verticesBufferId : undefined,		
 	colorsBufferId : undefined,
+	texCoordsBufferId : undefined,
 	
 	verticesAttribLoc : undefined,
 	colorsAttribLoc : undefined,
+	texCoordsAttribLoc : undefined,
 	gl : undefined,
 	
 	init : function(gl, vertices, faces) {
@@ -49,6 +52,12 @@ cglib.simpleMesh = {
 			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.colors), gl.STATIC_DRAW);
 		}
 		
+		if(this.texCoords) {
+			this.texCoordsBufferId = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordsBufferId);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.texCoords), gl.STATIC_DRAW);
+		}
+
 		this.facesBufferId = gl.createBuffer();
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.facesBufferId);
 		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(this.faces), gl.STATIC_DRAW);	
@@ -66,11 +75,25 @@ cglib.simpleMesh = {
 			gl.vertexAttribPointer(this.colorsAttribLoc, 3, gl.FLOAT, false, 0, 0);		
 		}
 		
+		if(this.texCoords) {
+			gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordsBufferId);
+			gl.enableVertexAttribArray(this.texCoordsAttribLoc);
+			gl.vertexAttribPointer(this.texCoordsAttribLoc, 2, gl.FLOAT, false, 0, 0);		
+		}
+
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.facesBufferId);
 		
 		var drawMode = this.drawMode === undefined ? gl.TRIANGLES : this.drawMode;
 		
 		gl.drawElements(drawMode, this.faces.length, gl.UNSIGNED_SHORT, 0);	
+
+		if(this.colors) {
+			gl.disableVertexAttribArray(this.colorsAttribLoc);
+		}
+
+		if(this.texCoords) {		
+			gl.disableVertexAttribArray(this.texCoordsAttribLoc);
+		}		
 	},
 
 	// Foundation helpers
@@ -87,7 +110,29 @@ cglib.simpleMesh = {
 }
 
 cglib.meshGenerator = {		
-	genSphereMesh : function(r,lat,long) {		
+	genScreenAlignedQuad : function(gl) {
+
+		var vertexPositionData = [
+				+1,-1,0, //0
+				+1,+1,0, //1
+				-1,-1,0, //2
+				-1,+1,0];//3
+
+		var texCoordData = [
+				1,0, //0
+				1,1, //1
+				0,0, //2
+				0,1];//3
+
+		var indexData = [0,1,2,3];
+
+		mesh = cglib.simpleMesh.extend()		
+		mesh.init(gl, vertexPositionData, indexData);
+		mesh.texCoords = texCoordData;
+		return mesh; 		
+	},
+
+	genSphereMesh : function(gl, r,lat,long) {		
 		var latitudeBands = lat;
 		var longitudeBands = long;
 		var radius = r;
@@ -139,12 +184,12 @@ cglib.meshGenerator = {
 		}
 	
 		mesh = cglib.simpleMesh.extend()
-		mesh.init(vertexPositionData, indexData);
-		mesh.colors = normalData;
+		mesh.init(gl, vertexPositionData, indexData);
+		//mesh.colors = normalData;
 		return mesh; 
 	},
 	
-	genCylinderMesh : function(baseRadius, topRadius, height, slices, stacks) {		
+	genCylinderMesh : function(gl, baseRadius, topRadius, height, slices, stacks) {		
 		
 		var vertexPositionData = [];
 		var normalData = [];
@@ -196,8 +241,8 @@ cglib.meshGenerator = {
 		}
 	
 		mesh = cglib.simpleMesh.extend()
-		mesh.init(vertexPositionData, indexData);
-		mesh.colors = normalData;
+		mesh.init(gl, vertexPositionData, indexData);
+		//mesh.colors = normalData;
 		return mesh; 
 	},
 };
