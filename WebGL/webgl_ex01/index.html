@@ -1,47 +1,26 @@
 <html>
-<body onload="webGLStart();">
+<head>
+	<script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>	
+	<script type="text/javascript" src="../webgl_common/lib3rd/webgl-utils.js"></script>
+	<script type="text/javascript" src="../webgl_common/lib3rd/gl-matrix.js"></script>
+	<script type="text/javascript" src="../webgl_common/cglib/webgl-common.js"></script>
+	<script type="text/javascript" src="../webgl_common/cglib/webgl-simple-mesh.js"></script>
+	<script type="text/javascript" src="../webgl_common/cglib/webgl-container.js"></script>			
+</head>
+<body>
+	<h1>WebGL Exercise 01</h1>
+	<canvas 
+		id="mycanvas"
+		width="512"
+		height="512">
+	</canvas>
 
-<script type="text/javascript" src="../webgl_common/lib3rd/webgl-utils.js"></script>
-<script type="text/javascript" src="../webgl_common/lib3rd/gl-matrix.js"></script>
-<script type="text/javascript" src="../webgl_common/cglib/webgl-common.js"></script>
-<script type="text/javascript" src="../webgl_common/cglib/webgl-simple-mesh.js"></script>
-<script type="text/javascript" src=ex01.js"></script>
-<script id="shader-vs" type="x-shader/x-vertex">
-
-attribute vec3 aVertex;
-uniform mat4 uMVMatrix;
-uniform mat4 uPMatrix; 
-
-//varying mediump vec3 vColor;
-
-void main(void)
-{
-	//vColor = uColor;
-	gl_Position = uPMatrix * uMVMatrix * vec4(aVertex,1.0);
-}
-
-</script>
-<script id="shader-fs" type="x-shader/x-fragment">
-
-uniform mediump vec3 uColor;
-//varying mediump vec3 vColor;
-
-void main(void)
-{
-   gl_FragColor = vec4( uColor, 1.0 );
-}
-</script>
-
-<h1>WebGL Exercise 01</h1>
-<canvas 
-	id="mycanvas"
-	width="500"
-	height="500">
-</canvas>
-
-<div>
-
-</div>
+	<script>
+  		canvas = jQuery("#mycanvas")[0];
+  		var container = cglib.container.extend();
+  		container.init(canvas);
+  		container.loadApp('ex01', 'ex01.js', './');
+	</script>
 
 </body>
 </html>

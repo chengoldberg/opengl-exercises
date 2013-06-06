@@ -9,18 +9,8 @@ var cglib = cglib || {};
  * WebGL Common Module 
  */
 cglib.WebGLCommon = function() {
-	
-	var gl = undefined;	
-	
-	function bindContext(_gl) {
-		gl = _gl; 
-	}
-	
-	function getCurrentContext() {
-		return gl;
-	}
-	
-	function compileShader(str,type) {	
+		
+	function compileShader(gl, str,type) {	
 	    var shader;
 	    shader = gl.createShader(type);
 	
@@ -35,7 +25,7 @@ cglib.WebGLCommon = function() {
 	    return shader;
 	}
 	
-	function linkProgram(vs,fs) {
+	function linkProgram(gl, vs,fs) {
 	    program = gl.createProgram();
 	    gl.attachShader(program, vs);
 	    gl.attachShader(program, fs);
@@ -53,7 +43,7 @@ cglib.WebGLCommon = function() {
 	 * @param id
 	 * @returns
 	 */
-	function getShaderScript(gl, id) {
+	function getShaderScript(id) {
 	    var shaderScript = document.getElementById(id);
 	    if (!shaderScript) {
 	        return null;
@@ -96,8 +86,6 @@ cglib.WebGLCommon = function() {
 	
 	// Define public interface
 	return {
-		bindContext : bindContext,
-		getCurrentContext : getCurrentContext,
 		compileShader : compileShader,
 		linkProgram : linkProgram,
 		getShaderScript : getShaderScript,
