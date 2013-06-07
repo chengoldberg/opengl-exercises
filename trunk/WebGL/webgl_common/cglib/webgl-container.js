@@ -146,6 +146,15 @@ cglib.container = {
 		});
 	},
 
+	setKeyUp : function(callback) {
+		this.keyUpFunc = callback;
+		var that = this;
+		jQuery(document).keyup(function(event) {
+			if(that.keyUpFunc(event.which))
+				event.preventDefault();	
+		});
+	},
+
 	loadResources : function(shaders) {
 		this.shaders = {}
 		var that = this;
