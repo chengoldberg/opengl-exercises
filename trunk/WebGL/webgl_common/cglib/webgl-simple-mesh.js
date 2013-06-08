@@ -2,87 +2,95 @@
 var cglib = cglib || {};
 
 /**
- * Simple mesh
+  * Simple mesh - maintains vertices information with custom attribtues and 
+  * possibly their order, and handles their rendering (without regards to 
+  * specific program).
  */
-cglib.simpleMesh = {		
+cglib.SimpleMesh = {		
+
+	isInitBuffers : false,
+	attribs : undefined,
+	attribLocs : undefined,
 	faces : undefined,
-	vertices : {},
-	colors : undefined,
-	texCoords : undefined,
-	
-	facesBufferId : undefined,
-	verticesBufferId : undefined,		
-	colorsBufferId : undefined,
-	texCoordsBufferId : undefined,
-	
-	verticesAttribLoc : undefined,
-	colorsAttribLoc : undefined,
-	texCoordsAttribLoc : undefined,
+	facesBufferId : undefined,	
 	gl : undefined,
-	
-	init : function(gl, vertices, faces) {
-		this.gl = gl;
+	drawMode : undefined,
+	elementsNum : undefined,
+
+	/**
+	 * Faces is optional - otherwise uses sequential rendering
+	 */
+	init : function(gl, faces) {
+		this.gl = gl;		
 		this.faces = faces;
-		this.vertices = vertices;
+		return this;
 	},
 
-	setAttribLocs : function(verticesAttribLoc, colorsAttribLoc) {
-		this.verticesAttribLoc = verticesAttribLoc;
-		this.colorsAttribLoc = colorsAttribLoc;
+	addAttrib : function(attribName, componentsNum, clientBuffer) {		
+		if(!this.attribs) {
+			this.attribs = {};
+			// Obtain number of elements from first attribute, assuming
+			// it's the most important.
+			this.elementsNum = clientBuffer.length/componentsNum;
+		}		
+		this.attribs[attribName] = {
+			'clientBuffer': clientBuffer,
+			'name': attribName,
+			'componentsNum': componentsNum,
+			'hostBufferId': undefined,
+		};
+		return this;
+	},
+
+	setAttribLocs : function(attribLocs) {
+		this.attribLocs = attribLocs;
 	},
 	
-	render : function() {
-		if(!this.verticesBufferId) {
+	render : function() {		
+		if(!this.isInitBuffers) {
 			this.initBuffers();
 		}
-		if(this.verticesBufferId) {	
+		if(this.isInitBuffers) {	
 			this.renderActually();
 		}
 	},
 
 	initBuffers : function() {
 		var gl = this.gl;
-		this.verticesBufferId = gl.createBuffer();
-		gl.bindBuffer(gl.ARRAY_BUFFER, this.verticesBufferId);
-		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.vertices), gl.STATIC_DRAW);
 
-		if(this.colors) {
-			this.colorsBufferId = gl.createBuffer();
-			gl.bindBuffer(gl.ARRAY_BUFFER, this.colorsBufferId);
-			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.colors), gl.STATIC_DRAW);
+		for(var key in this.attribs) {
+			var attrib = this.attribs[key];
+			attrib.hostBufferId = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER, attrib.hostBufferId);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(attrib.clientBuffer), gl.STATIC_DRAW);
+			gl.bindBuffer(gl.ARRAY_BUFFER, null);
 		}
 		
-		if(this.texCoords) {
-			this.texCoordsBufferId = gl.createBuffer();
-			gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordsBufferId);
-			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.texCoords), gl.STATIC_DRAW);
-		}
-
 		if(this.faces) {
 			this.facesBufferId = gl.createBuffer();
 			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.facesBufferId);
 			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(this.faces), gl.STATIC_DRAW);	
 			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 		}
+
+		this.isInitBuffers = true;
 	},
 	
 	renderActually : function() {
 		var gl = this.gl;
-		gl.bindBuffer(gl.ARRAY_BUFFER, this.verticesBufferId);
-		gl.enableVertexAttribArray(this.verticesAttribLoc);
-		gl.vertexAttribPointer(this.verticesAttribLoc, 3, gl.FLOAT, false, 0, 0);
-		
-		if(this.colors) {
-			gl.bindBuffer(gl.ARRAY_BUFFER, this.colorsBufferId);
-			gl.enableVertexAttribArray(this.colorsAttribLoc);
-			gl.vertexAttribPointer(this.colorsAttribLoc, 3, gl.FLOAT, false, 0, 0);		
+		if(!this.attribLocs) {
+			console.log('Error rendering - attribute locations not specified');
+			return;			
 		}
-		
-		if(this.texCoords) {
-			gl.bindBuffer(gl.ARRAY_BUFFER, this.texCoordsBufferId);
-			gl.enableVertexAttribArray(this.texCoordsAttribLoc);
-			gl.vertexAttribPointer(this.texCoordsAttribLoc, 2, gl.FLOAT, false, 0, 0);		
-		}
+
+		for(var key in this.attribs) {
+			var attrib = this.attribs[key];
+			var loc = this.attribLocs[key];
+			gl.bindBuffer(gl.ARRAY_BUFFER, attrib.hostBufferId);
+			gl.enableVertexAttribArray(loc);
+			gl.vertexAttribPointer(loc, attrib.componentsNum, gl.FLOAT, false, 0, 0);					
+			gl.bindBuffer(gl.ARRAY_BUFFER, null);
+		}		
 
 		var drawMode = this.drawMode === undefined ? gl.TRIANGLES : this.drawMode;
 
@@ -91,15 +99,13 @@ cglib.simpleMesh = {
 			gl.drawElements(drawMode, this.faces.length, gl.UNSIGNED_SHORT, 0);	
 			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);			
 		} else {
-			gl.drawArrays(drawMode, 0, this.vertices.length/3)
+			gl.drawArrays(drawMode, 0, this.elementsNum);
 		}
 
-		if(this.colors) {
-			gl.disableVertexAttribArray(this.colorsAttribLoc);
-		}
-
-		if(this.texCoords) {		
-			gl.disableVertexAttribArray(this.texCoordsAttribLoc);
+		for(var key in this.attribs) {
+			var attrib = this.attribs[key];
+			var loc = this.attribLocs[key];
+			gl.disableVertexAttribArray(loc);
 		}		
 	},
 
@@ -133,9 +139,10 @@ cglib.meshGenerator = {
 
 		var indexData = [0,1,2,3];
 
-		mesh = cglib.simpleMesh.extend()		
-		mesh.init(gl, vertexPositionData, indexData);
-		mesh.texCoords = texCoordData;
+		mesh = cglib.SimpleMesh.extend()		
+		mesh.init(gl, indexData);
+		mesh.addAttrib('position', 3, vertexPositionData);
+		mesh.addAttrib('texCoord', 2, texCoordData);
 		return mesh; 		
 	},
 
@@ -164,14 +171,9 @@ cglib.meshGenerator = {
 		    var u = 1- (longNumber / longitudeBands);
 		    var v = latNumber / latitudeBands;
 		
-		    normalData.push(x);
-		    normalData.push(y);
-		    normalData.push(z);
-		    textureCoordData.push(u);
-		    textureCoordData.push(v);
-		    vertexPositionData.push(radius * x);
-		    vertexPositionData.push(radius * y);
-		    vertexPositionData.push(radius * z);
+		    normalData.push(x, y, z);
+		    textureCoordData.push(u,v);
+		    vertexPositionData.push(radius * x, radius * y, radius * z);
 		  }
 		}
 		
@@ -180,19 +182,16 @@ cglib.meshGenerator = {
 		  for (var longNumber = 0; longNumber < longitudeBands; longNumber++) {
 		    var first = (latNumber * (longitudeBands + 1)) + longNumber;
 		    var second = first + longitudeBands + 1;
-		    indexData.push(first);
-		    indexData.push(second);
-		    indexData.push(first + 1);
-		
-		    indexData.push(second);
-		    indexData.push(second + 1);
-		    indexData.push(first + 1);
+		    //indexData.push(first, second, first + 1);		
+		    //indexData.push(second, second + 1, first + 1);
+		    indexData.push(first, first + 1, second + 1);		
+		    indexData.push(second + 1, second, first);
 		  }
 		}
 	
-		mesh = cglib.simpleMesh.extend()
-		mesh.init(gl, vertexPositionData, indexData);
-		//mesh.colors = normalData;
+		mesh = cglib.SimpleMesh.extend()
+		mesh.init(gl, indexData);		
+		mesh.addAttrib('position', 3, vertexPositionData);	
 		return mesh; 
 	},
 	
@@ -247,9 +246,9 @@ cglib.meshGenerator = {
 		  }
 		}
 	
-		mesh = cglib.simpleMesh.extend()
-		mesh.init(gl, vertexPositionData, indexData);
-		//mesh.colors = normalData;
+		mesh = cglib.SimpleMesh.extend()
+		mesh.init(gl, indexData);		
+		mesh.addAttrib('position', 3, vertexPositionData);
 		return mesh; 
 	},
 };

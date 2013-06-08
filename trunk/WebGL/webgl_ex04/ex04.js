@@ -62,7 +62,8 @@ var GameLogic = function() {
 	];		
 
 	function init() {
-		angle = 0;
+		//TODO: change in original as well!
+		angle = Math.PI/2;
 		location = [8,8];		
 		initCollisionTables();
 	}
@@ -185,7 +186,7 @@ var ex04 = function() {
 	}	
 	
 	function setColor(r,g,b) {
-		gl.uniform3fv(uniforms.color, [r,g,b]);
+		//gl.uniform3fv(uniforms.color, [r,g,b]);
 	}
 
 	function drawObjects() {
@@ -209,14 +210,12 @@ var ex04 = function() {
 	}
 
 	function drawWalls() {		
-		meshes.walls.drawMode = gl.LINE_LOOP;
-		meshes.walls.setAttribLocs(attribs.position);
+		meshes.walls.setAttribLocs(attribs);
 		meshes.walls.render();
 	}
 
 	function drawFloor() {		
-		meshes.floor.drawMode = gl.LINE_LOOP;
-		meshes.floor.setAttribLocs(attribs.position);
+		meshes.floor.setAttribLocs(attribs);
 		meshes.floor.render();
 	}
 
@@ -242,25 +241,18 @@ var ex04 = function() {
 	/**
 	 * Draw a unit size RGB cube
 	 */
-	function drawCylinder() {	
-			
-		meshes.cylinder.drawMode = gl.LINE_LOOP;
-		
-		// Render
-		meshes.cylinder.setAttribLocs(attribs.position);
+	function drawCylinder() {				
+		meshes.cylinder.setAttribLocs(attribs);
 		meshes.cylinder.render();				
 	}
 	
-	function drawSphere(isSmall) {
-		meshes.sphereSmall.drawMode = gl.LINE_LOOP;
-		meshes.sphereLarge.drawMode = gl.LINE_LOOP;
-		
+	function drawSphere(isSmall) {	
 		// Render
 		if(isSmall) {
-			meshes.sphereSmall.setAttribLocs(attribs.position);
+			meshes.sphereSmall.setAttribLocs(attribs);
 			meshes.sphereSmall.render();						
 		} else {
-			meshes.sphereLarge.setAttribLocs(attribs.position);
+			meshes.sphereLarge.setAttribLocs(attribs);
 			meshes.sphereLarge.render();									
 		}
 	}
@@ -272,7 +264,10 @@ var ex04 = function() {
 			vertexPositionData.push(wall[0], 0, wall[1]);
 			vertexPositionData.push(wall[0], 2, wall[1]);
 			vertexPositionData.push(wall[0]+1, 2, wall[1]);
+
+			vertexPositionData.push(wall[0]+1, 2, wall[1]);
 			vertexPositionData.push(wall[0]+1, 0, wall[1]);			
+			vertexPositionData.push(wall[0], 0, wall[1]);
 		}
 
 		for(var i=0;i<GameLogic.verWalls.length;++i) {
@@ -280,11 +275,15 @@ var ex04 = function() {
 			vertexPositionData.push(wall[0], 0, wall[1]);
 			vertexPositionData.push(wall[0], 2, wall[1]);
 			vertexPositionData.push(wall[0], 2, wall[1]+1);
+
+			vertexPositionData.push(wall[0], 2, wall[1]+1);
 			vertexPositionData.push(wall[0], 0, wall[1]+1);
+			vertexPositionData.push(wall[0], 0, wall[1]);
 		}		
 
-		mesh = cglib.simpleMesh.extend()
-		mesh.init(gl, vertexPositionData);
+		mesh = cglib.SimpleMesh.extend()
+		mesh.init(gl)
+			.addAttrib('position', 3, vertexPositionData);
 		return mesh; 		
 	}
 
@@ -296,15 +295,23 @@ var ex04 = function() {
 		var vertexPositionData = [];
 		for(var i=0;i<GameLogic.getBoardSize()[0];++i) {
 			for(var j=0;j<GameLogic.getBoardSize()[1];++j) {											
+				// Because using triangle strip - must use upside-down N shape
 				vertexPositionData.push(0+i, 0, 0+j);
-				vertexPositionData.push(0+i, 0, 1+j);
+				vertexPositionData.push(0+i, 0, 1+j);				
 				vertexPositionData.push(1+i, 0, 1+j);
-				vertexPositionData.push(1+i, 0, 0+j);			
+
+				vertexPositionData.push(1+i, 0, 1+j);
+				vertexPositionData.push(1+i, 0, 0+j);
+				vertexPositionData.push(0+i, 0, 0+j);							
 			}
 		}
 
-		mesh = cglib.simpleMesh.extend()
-		mesh.init(gl, vertexPositionData);
+		mesh = cglib.SimpleMesh.extend()
+		mesh.init(gl)
+			.addAttrib('position', 3, vertexPositionData);
+		mesh.drawMode = gl.TRIANGLE;
+		//mesh.drawMode = gl.LINES;
+
 		return mesh; 
 	}
 
@@ -313,7 +320,7 @@ var ex04 = function() {
 		meshes.sphereSmall = cglib.meshGenerator.genSphereMesh(gl, 0.5, 8, 8);
 		meshes.sphereLarge = cglib.meshGenerator.genSphereMesh(gl, 0.75, 32, 32);
 		meshes.floor = initFloorMesh();
-		meshes.walls = initWallsMesh();
+		meshes.walls = initWallsMesh();	
 	}
 
 	function initShaders() {
@@ -356,6 +363,8 @@ var ex04 = function() {
     
 		// Set background color to gray    
 	    gl.clearColor(0, 0, 0, 1); 
+
+	    gl.enable(gl.DEPTH_TEST);
 	}
 	
 	function animate() {	

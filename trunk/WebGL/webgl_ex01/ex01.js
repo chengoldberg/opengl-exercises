@@ -40,8 +40,9 @@ var ex01 = function() {
 			               2,3,0
 			               ]; 
 			
-			meshes.square = cglib.simpleMesh.extend();
-			meshes.square.init(gl, vertices, indices);	
+			meshes.square = cglib.SimpleMesh.extend();
+			meshes.square.init(gl, indices)
+				.addAttrib('position', 3, vertices);
 		}
 	
 		// Set world position
@@ -53,7 +54,7 @@ var ex01 = function() {
 		meshes.square.drawMode = isDrawLines?gl.LINE_LOOP:gl.TRIANGLES;
 		
 		// Render
-		meshes.square.setAttribLocs(attribs.vertexPos);
+		meshes.square.setAttribLocs(attribs);
 		meshes.square.render();	
 	}
 
@@ -74,8 +75,9 @@ var ex01 = function() {
 			}
 			indices.push(1);
 			
-			meshes.circle = cglib.simpleMesh.extend();
-			meshes.circle.init(gl, vertices, indices);				
+			meshes.circle = cglib.SimpleMesh.extend();
+			meshes.circle.init(gl, indices)
+				.addAttrib('position', 3, vertices);							
 			meshes.circle.drawMode = gl.TRIANGLE_FAN;			
 		}
 
@@ -86,7 +88,7 @@ var ex01 = function() {
 		updateMVP();
 		
 		// Render
-		meshes.circle.setAttribLocs(attribs.vertexPos);
+		meshes.circle.setAttribLocs(attribs);
 		meshes.circle.render();	
 
 		//glPopMatrix();
@@ -105,8 +107,9 @@ var ex01 = function() {
 			               0,1,2
 			               ]; 
 				
-			meshes.triangle = cglib.simpleMesh.extend();
-			meshes.triangle.init(gl, vertices, indices);				
+			meshes.triangle = cglib.SimpleMesh.extend();
+			meshes.triangle.init(gl, indices)
+				.addAttrib('position', 3, vertices);
 		}
 		
 		// Set world position
@@ -118,7 +121,7 @@ var ex01 = function() {
 		meshes.triangle.drawMode = isDrawLines?gl.LINE_LOOP:gl.TRIANGLES;
 		
 		// Render
-		meshes.triangle.setAttribLocs(attribs.vertexPos);
+		meshes.triangle.setAttribLocs(attribs);
 		meshes.triangle.render();			
 	}
 
@@ -209,7 +212,7 @@ var ex01 = function() {
 	   
 	    // Store attrib IDs
 	    attribs = {};
-	    attribs.vertexPos = gl.getAttribLocation(shaderProgram, "aVertex");    
+	    attribs.position = gl.getAttribLocation(shaderProgram, "aVertex");    
 
 	    // Store unfiform IDs
 	    uniforms = {};
@@ -252,9 +255,14 @@ var ex01 = function() {
 	    
 	    initWorld();	    
 	}
-	
+
+	function getDebug(val) {
+		return eval(val);
+	}	
+
 	return {
 		init : init,
 		start : start,
+		getDebug : getDebug,
 	};	
 } ();
