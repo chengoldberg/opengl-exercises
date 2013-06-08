@@ -32,12 +32,22 @@ cglib.SimpleMesh = {
 			// Obtain number of elements from first attribute, assuming
 			// it's the most important.
 			this.elementsNum = clientBuffer.length/componentsNum;
-		}		
+		}	
+
+		var curElementsNum = clientBuffer.length/componentsNum;
+		var isConstant = false;
+		if(curElementsNum == 1) {
+			isConstant = true
+		} else if(curElementsNum != this.elementsNum) {
+			console.log('error - number of elements different than first attribute');
+		}
+
 		this.attribs[attribName] = {
 			'clientBuffer': clientBuffer,
 			'name': attribName,
 			'componentsNum': componentsNum,
 			'hostBufferId': undefined,
+			'isConstant': isConstant,
 		};
 		return this;
 	},
@@ -86,10 +96,16 @@ cglib.SimpleMesh = {
 		for(var key in this.attribs) {
 			var attrib = this.attribs[key];
 			var loc = this.attribLocs[key];
-			gl.bindBuffer(gl.ARRAY_BUFFER, attrib.hostBufferId);
-			gl.enableVertexAttribArray(loc);
-			gl.vertexAttribPointer(loc, attrib.componentsNum, gl.FLOAT, false, 0, 0);					
-			gl.bindBuffer(gl.ARRAY_BUFFER, null);
+			if(loc == undefined)
+				continue;
+			if(attrib.isConstant) {
+			    gl.vertexAttrib3fv(loc, attrib.clientBuffer);
+			} else {
+				gl.bindBuffer(gl.ARRAY_BUFFER, attrib.hostBufferId);
+				gl.enableVertexAttribArray(loc);
+				gl.vertexAttribPointer(loc, attrib.componentsNum, gl.FLOAT, false, 0, 0);					
+				gl.bindBuffer(gl.ARRAY_BUFFER, null);
+			}
 		}		
 
 		var drawMode = this.drawMode === undefined ? gl.TRIANGLES : this.drawMode;
@@ -190,8 +206,9 @@ cglib.meshGenerator = {
 		}
 	
 		mesh = cglib.SimpleMesh.extend()
-		mesh.init(gl, indexData);		
-		mesh.addAttrib('position', 3, vertexPositionData);	
+		mesh.init(gl, indexData)
+			.addAttrib('position', 3, vertexPositionData)
+			.addAttrib('normal', 3, normalData);	
 		return mesh; 
 	},
 	
@@ -247,8 +264,9 @@ cglib.meshGenerator = {
 		}
 	
 		mesh = cglib.SimpleMesh.extend()
-		mesh.init(gl, indexData);		
-		mesh.addAttrib('position', 3, vertexPositionData);
+		mesh.init(gl, indexData)
+			.addAttrib('position', 3, vertexPositionData)
+			.addAttrib('normal', 3, normalData);
 		return mesh; 
 	},
 };
