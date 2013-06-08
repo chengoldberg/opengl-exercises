@@ -153,9 +153,7 @@ var ex03 = function() {
 	    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 	    gl.enable(gl.BLEND);
 		meshes.screenAlignedQuad.drawMode = gl.TRIANGLE_STRIP;
-		meshes.screenAlignedQuad.setAttribLocs(attribs.position);
-		meshes.screenAlignedQuad.texCoordsAttribLoc = attribs.texCoord;
-
+		meshes.screenAlignedQuad.setAttribLocs(attribs);		
 		meshes.screenAlignedQuad.render();						
 	}
 
@@ -167,7 +165,7 @@ var ex03 = function() {
 		meshes.cylinder.drawMode = gl.LINE_LOOP;
 		
 		// Render
-		meshes.cylinder.setAttribLocs(attribs.position);
+		meshes.cylinder.setAttribLocs(attribs);
 		meshes.cylinder.render();				
 	}
 	
@@ -175,7 +173,7 @@ var ex03 = function() {
 		meshes.sphere.drawMode = gl.LINE_LOOP;
 		
 		// Render
-		meshes.sphere.setAttribLocs(attribs.position);
+		meshes.sphere.setAttribLocs(attribs);
 		meshes.sphere.render();						
 	}
 

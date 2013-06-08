@@ -51,9 +51,10 @@ var ex02 = function() {
 			7,5,4,	4,6,7,
 			7,3,1,	1,5,7];
 		
-		meshes.cube = cglib.simpleMesh.extend();
-		meshes.cube.init(gl, vertices, faces);
-		meshes.cube.colors = colors;	
+		meshes.cube = cglib.SimpleMesh.extend();
+		meshes.cube.init(gl, faces)
+			.addAttrib('position', 3, vertices)
+			.addAttrib('color', 3, colors);
 	}
 	
 	/**
@@ -68,7 +69,7 @@ var ex02 = function() {
 		meshes.cube.drawMode = drawMode;
 		
 		// Render
-		meshes.cube.setAttribLocs(attribs.position, attribs.color);
+		meshes.cube.setAttribLocs(attribs);
 		meshes.cube.render();				
 	}
 	
