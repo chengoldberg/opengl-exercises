@@ -10,9 +10,61 @@ var GameLogic = function() {
 
 	var location = vec2.create();
 
+	var verWallsTable = undefined;
+	var horWallsTable = undefined;
+
+	var horWalls = [
+		[1,1],
+		[2,1],
+		[3,1],
+		[4,1],
+
+		[5,1],
+		[6,1],
+		[7,1],
+		[8,1],
+
+		[9,1],
+		[10,1],
+		[11,1],
+		[12,1],
+
+		[1,5],
+		[4,5],
+
+		[5,5],
+		[8,5],
+
+		[9,5],
+		[12,5]				
+	];
+
+	var verWalls = [
+		[1,1],
+		[1,2],
+		[1,3],
+		[1,4],
+
+		[5,1],
+		[5,2],
+		[5,3],
+		[5,4],
+
+		[9,1],
+		[9,2],
+		[9,3],
+		[9,4],
+
+		[13,1],
+		[13,2],
+		[13,3],
+		[13,4]				
+	];		
+
 	function init() {
 		angle = 0;
 		location = [8,8];		
+		initCollisionTables();
 	}
 
 	function update() {
@@ -28,17 +80,66 @@ var GameLogic = function() {
 				location[0] += dx*0.1;
 				location[1] += dy*0.1;				
 			}
+
+			// Check collision
+			var curX = Math.floor(location[0]);
+			var curY = Math.floor(location[1]);
+			var offX = location[0]-curX;
+			var offY = location[1]-curY;
+
+			var pad = 0.2;
+			if(offY<pad && horWallsTable[curX][curY])
+				location[1] = curY + pad;
+			if(offY>1-pad && horWallsTable[curX][curY+1])
+				location[1] = curY + 1 - pad;
+			if(offX<pad && verWallsTable[curX][curY])
+				location[0] = curX + pad;
+			if(offX>1-pad && verWallsTable[curX+1][curY])
+				location[0] = curX + 1 - pad;							
 		}
 		if(actions.turnLeft) {
 			angle -= 0.075;				
-			console.log(angle)
 		}
 		if(actions.turnRight) {
 			angle += 0.075;				
-			console.log(angle)
 		}		
 	}
 
+	function createMultiBoolArray(width, height) {
+	 	var table = [];
+		table[width] = undefined;		
+		for(var i = 0;i<width; ++i) {
+			table[i] = new Int8Array(height);
+		}
+		return table;
+	}
+
+	function initCollisionTables() {		
+
+		var boardWidth = getBoardSize()[0];
+		var boardHeight = getBoardSize()[1];
+
+		horWallsTable = createMultiBoolArray(boardWidth+1, boardHeight+1);
+		verWallsTable = createMultiBoolArray(boardWidth+1, boardHeight+1);
+		
+		for(var i=0;i<horWalls.length;++i) {
+			var cell = horWalls[i];
+			horWallsTable[cell[0]][cell[1]] = true;
+		}
+		for(var i=0;i<verWalls.length;++i) {
+			var cell = verWalls[i];		
+			verWallsTable[cell[0]][cell[1]] = true;
+		}		
+
+		for(var i = 0;i<boardWidth;++i) {
+			horWallsTable[i][0] = true;
+			horWallsTable[i][boardHeight] = true;
+		}
+		for(var i = 0;i<boardHeight;++i) {
+			verWallsTable[0][i] = true;
+			verWallsTable[boardWidth][i] = true;
+		}		
+	}
 	// JS note: when doing a module-like closure - you can't "expose" primitive values (e.g. can't return angle)
 	// Therefore must use getters.
 	function getAngle() {
@@ -50,6 +151,7 @@ var GameLogic = function() {
 	function getBoardSize() {
 		return [14, 20];
 	}
+
 	return {
 		init: init,
 		update: update,
@@ -57,6 +159,8 @@ var GameLogic = function() {
 		getAngle: getAngle,
 		getLocation: getLocation,
 		getBoardSize: getBoardSize,
+		horWalls: horWalls,
+		verWalls: verWalls,
 	}
 } ();
 
@@ -104,6 +208,12 @@ var ex04 = function() {
 		drawCylinder();		
 	}
 
+	function drawWalls() {		
+		meshes.walls.drawMode = gl.LINE_LOOP;
+		meshes.walls.setAttribLocs(attribs.position);
+		meshes.walls.render();
+	}
+
 	function drawFloor() {		
 		meshes.floor.drawMode = gl.LINE_LOOP;
 		meshes.floor.setAttribLocs(attribs.position);
@@ -125,7 +235,8 @@ var ex04 = function() {
 		mat4.identity(mwMatrix);
 		updateMVP();
 		drawFloor();
-		drawObjects();				
+		drawWalls();
+		drawObjects();						
 	};
 
 	/**
@@ -154,7 +265,34 @@ var ex04 = function() {
 		}
 	}
 
+	function initWallsMesh() {
+		var vertexPositionData = [];
+		for(var i=0;i<GameLogic.horWalls.length;++i) {
+			var wall = GameLogic.horWalls[i];
+			vertexPositionData.push(wall[0], 0, wall[1]);
+			vertexPositionData.push(wall[0], 2, wall[1]);
+			vertexPositionData.push(wall[0]+1, 2, wall[1]);
+			vertexPositionData.push(wall[0]+1, 0, wall[1]);			
+		}
+
+		for(var i=0;i<GameLogic.verWalls.length;++i) {
+			var wall = GameLogic.verWalls[i];
+			vertexPositionData.push(wall[0], 0, wall[1]);
+			vertexPositionData.push(wall[0], 2, wall[1]);
+			vertexPositionData.push(wall[0], 2, wall[1]+1);
+			vertexPositionData.push(wall[0], 0, wall[1]+1);
+		}		
+
+		mesh = cglib.simpleMesh.extend()
+		mesh.init(gl, vertexPositionData);
+		return mesh; 		
+	}
+
 	function initFloorMesh() {
+		// Convertion note: Converting these static meshes from begin/end blocks
+		// is rather straightforward. Just dump all the sequence into
+		// arrays and create a sequenced mesh (vertices.push instead of glVertex)
+
 		var vertexPositionData = [];
 		for(var i=0;i<GameLogic.getBoardSize()[0];++i) {
 			for(var j=0;j<GameLogic.getBoardSize()[1];++j) {											
@@ -164,10 +302,6 @@ var ex04 = function() {
 				vertexPositionData.push(1+i, 0, 0+j);			
 			}
 		}
-
-		var indices = [];
-		for(var i=0; i<vertexPositionData.length/3;++i)
-			indices.push(i);
 
 		mesh = cglib.simpleMesh.extend()
 		mesh.init(gl, vertexPositionData);
@@ -179,6 +313,7 @@ var ex04 = function() {
 		meshes.sphereSmall = cglib.meshGenerator.genSphereMesh(gl, 0.5, 8, 8);
 		meshes.sphereLarge = cglib.meshGenerator.genSphereMesh(gl, 0.75, 32, 32);
 		meshes.floor = initFloorMesh();
+		meshes.walls = initWallsMesh();
 	}
 
 	function initShaders() {
