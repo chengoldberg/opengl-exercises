@@ -183,8 +183,28 @@ var ex04 = function() {
 		mat4.multiply(mvMatrix, wvMatrix, mwMatrix);
 	    gl.uniformMatrix4fv(uniforms.projectionMatrix, false, pMatrix);
 	    gl.uniformMatrix4fv(uniforms.modelViewMatrix, false, mvMatrix );
+
+	    var normalMatrix = mat3.create();
+	    mat3.normalFromMat4(normalMatrix, mvMatrix);
+	    gl.uniformMatrix3fv(uniforms.normalMatrix, false, normalMatrix);
 	}	
-	
+
+	function setLightPosition(pos) {
+		gl.uniform4fv(uniforms.lightPosition, pos);
+	}
+
+	function setMaterial(ambient, diffuse, specular, specularPower) {
+		if(ambient)	
+			gl.uniform4fv(uniforms.ambient, ambient);
+		if(diffuse) {
+			gl.uniform4fv(uniforms.diffuse, diffuse);
+		}
+		if(specular)
+			gl.uniform4fv(uniforms.specular, specular);
+		if(specularPower)
+			gl.uniform1f(uniforms.specularPower, specularPower);
+	}
+
 	function setColor(r,g,b) {
 		//gl.uniform3fv(uniforms.color, [r,g,b]);
 	}
@@ -192,7 +212,6 @@ var ex04 = function() {
 	function drawObjects() {
 
 		// It's ok to overide mw matrix here
-		setColor(1, 0.5, 0.5);
 		mat4.identity(mwMatrix);
 		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(3, 0.75, 3, 0));
 		updateMVP();	
@@ -230,6 +249,15 @@ var ex04 = function() {
 		// Create camera transformation
 		setupCamera();
 
+		var lightPosition = vec4.fromValues(8,8,8,1);
+		vec4.transformMat4(lightPosition, lightPosition, wvMatrix);
+		setLightPosition(lightPosition);
+		setMaterial(
+			[0,0,0,1],
+			[1.0,0,0,1],
+			[1,1,1,1],
+			20);
+
 		// Draw world
 		mat4.identity(mwMatrix);
 		updateMVP();
@@ -257,8 +285,15 @@ var ex04 = function() {
 		}
 	}
 
-	function initWallsMesh() {
+	function initWallsMesh() {		
 		var vertexPositionData = [];
+		var normalData = [];
+		var pushRepeat = function(data, val, times) {
+			for(var i=0;i<times;++i) {
+				data.push(val[0], val[1], val[2]);
+			}
+		}
+
 		for(var i=0;i<GameLogic.horWalls.length;++i) {
 			var wall = GameLogic.horWalls[i];
 			vertexPositionData.push(wall[0], 0, wall[1]);
@@ -268,6 +303,8 @@ var ex04 = function() {
 			vertexPositionData.push(wall[0]+1, 2, wall[1]);
 			vertexPositionData.push(wall[0]+1, 0, wall[1]);			
 			vertexPositionData.push(wall[0], 0, wall[1]);
+
+			pushRepeat(normalData, [0,0,-1], 6);
 		}
 
 		for(var i=0;i<GameLogic.verWalls.length;++i) {
@@ -279,11 +316,14 @@ var ex04 = function() {
 			vertexPositionData.push(wall[0], 2, wall[1]+1);
 			vertexPositionData.push(wall[0], 0, wall[1]+1);
 			vertexPositionData.push(wall[0], 0, wall[1]);
+
+			pushRepeat(normalData, [1,0,0], 6);
 		}		
 
 		mesh = cglib.SimpleMesh.extend()
 		mesh.init(gl)
-			.addAttrib('position', 3, vertexPositionData);
+			.addAttrib('position', 3, vertexPositionData)
+			.addAttrib('normal', 3, normalData);
 		return mesh; 		
 	}
 
@@ -308,7 +348,8 @@ var ex04 = function() {
 
 		mesh = cglib.SimpleMesh.extend()
 		mesh.init(gl)
-			.addAttrib('position', 3, vertexPositionData);
+			.addAttrib('position', 3, vertexPositionData)
+			.addAttrib('normal', 3, [0,1,0]);
 		mesh.drawMode = gl.TRIANGLE;
 		//mesh.drawMode = gl.LINES;
 
@@ -336,24 +377,27 @@ var ex04 = function() {
 	    // Store attrib IDs
 	    attribs = {};
 	    attribs.position = gl.getAttribLocation(shaderProgram, "aPosition");    
-	    attribs.texCoord = gl.getAttribLocation(shaderProgram, "aTexCoord");    
+	    attribs.normal = gl.getAttribLocation(shaderProgram, "aNormal");   
 	
 	    // Store unfiform IDs
 	    uniforms = {};
+	    uniforms.normalMatrix = gl.getUniformLocation(shaderProgram, "uNormalMatrix");
 	    uniforms.projectionMatrix = gl.getUniformLocation(shaderProgram, "uProjectionMatrix");
 	    uniforms.modelViewMatrix = gl.getUniformLocation(shaderProgram, "uModelViewMatrix");   
-	    uniforms.color = gl.getUniformLocation(shaderProgram, "uColor");
-	    uniforms.textureEnabled = gl.getUniformLocation(shaderProgram, "uTextureEnabled");
-	    uniforms.texture0 = gl.getUniformLocation(shaderProgram, "uTexture0");
+	    uniforms.lightPosition = gl.getUniformLocation(shaderProgram, "uLightPosition");
+	    uniforms.ambient = gl.getUniformLocation(shaderProgram, "uAmbient");
+	    uniforms.diffuse = gl.getUniformLocation(shaderProgram, "uDiffuse");
+	    uniforms.specular = gl.getUniformLocation(shaderProgram, "uSpecular");
+	    uniforms.specularPower = gl.getUniformLocation(shaderProgram, "uSpecularPower");
 	}
 	
 	function initWorld() {
-	    // Init global user-data
+	    // Init global user-data	    
 	    mwMatrix = mat4.create();
 	    wvMatrix = mat4.create();
 	    pMatrix = mat4.create(); 
 
-	    GameLogic.init();          
+	    GameLogic.init();               
 	}
 	
 	function initGL(context) {
