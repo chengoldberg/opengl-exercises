@@ -30,11 +30,11 @@ var GameLogic = function() {
 			}
 		}
 		if(actions.turnLeft) {
-			angle += 0.075;				
+			angle -= 0.075;				
 			console.log(angle)
 		}
 		if(actions.turnRight) {
-			angle -= 0.075;				
+			angle += 0.075;				
 			console.log(angle)
 		}		
 	}
@@ -47,13 +47,16 @@ var GameLogic = function() {
 	function getLocation() {
 		return location;
 	}
-
+	function getBoardSize() {
+		return [14, 20];
+	}
 	return {
 		init: init,
 		update: update,
 		actions: actions,
 		getAngle: getAngle,
 		getLocation: getLocation,
+		getBoardSize: getBoardSize,
 	}
 } ();
 
@@ -101,6 +104,12 @@ var ex04 = function() {
 		drawCylinder();		
 	}
 
+	function drawFloor() {		
+		meshes.floor.drawMode = gl.LINE_LOOP;
+		meshes.floor.setAttribLocs(attribs.position);
+		meshes.floor.render();
+	}
+
 	function renderWorld() {
 		
 		// Clear FrameBuffer
@@ -111,16 +120,12 @@ var ex04 = function() {
 		
 		// Create camera transformation
 		setupCamera();
-		mat4.identity(mwMatrix);
 
-		drawObjects();				
-
+		// Draw world
 		mat4.identity(mwMatrix);
-		//mat4.identity(wvMatrix);
-		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(0,0,-5,0));
-		//mat4.identity(pMatrix);
 		updateMVP();
-		drawSphere(false);		
+		drawFloor();
+		drawObjects();				
 	};
 
 	/**
@@ -149,10 +154,31 @@ var ex04 = function() {
 		}
 	}
 
+	function initFloorMesh() {
+		var vertexPositionData = [];
+		for(var i=0;i<GameLogic.getBoardSize()[0];++i) {
+			for(var j=0;j<GameLogic.getBoardSize()[1];++j) {											
+				vertexPositionData.push(0+i, 0, 0+j);
+				vertexPositionData.push(0+i, 0, 1+j);
+				vertexPositionData.push(1+i, 0, 1+j);
+				vertexPositionData.push(1+i, 0, 0+j);			
+			}
+		}
+
+		var indices = [];
+		for(var i=0; i<vertexPositionData.length/3;++i)
+			indices.push(i);
+
+		mesh = cglib.simpleMesh.extend()
+		mesh.init(gl, vertexPositionData);
+		return mesh; 
+	}
+
 	function initMeshes() {
 		meshes.cylinder = cglib.meshGenerator.genCylinderMesh(gl, 0.1, 0.1, 1, 8, 1);
 		meshes.sphereSmall = cglib.meshGenerator.genSphereMesh(gl, 0.5, 8, 8);
 		meshes.sphereLarge = cglib.meshGenerator.genSphereMesh(gl, 0.75, 32, 32);
+		meshes.floor = initFloorMesh();
 	}
 
 	function initShaders() {
@@ -209,7 +235,7 @@ var ex04 = function() {
 	    gl.viewport(0, 0, width, height);
 	    
 	    // Create projection transformation   
-		mat4.perspective(pMatrix, 30.0, width/height, 0.1, 1000);		
+		mat4.perspective(pMatrix, 60.0*Math.PI/180, width/height, 0.1, 1000);		
 
 		//console.log(pMatrix);	
 	}
@@ -293,10 +319,15 @@ var ex04 = function() {
 	    
 	    renderScene();		
 	}
-	
+
+	function getDebug(val) {
+		return eval(val);
+	}
+
 	return {
 		init : init,
 		start : start,
+		getDebug: getDebug,
 	};
 	
 } ();

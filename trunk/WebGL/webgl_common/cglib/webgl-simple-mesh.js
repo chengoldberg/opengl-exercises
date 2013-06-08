@@ -5,7 +5,7 @@ var cglib = cglib || {};
  * Simple mesh
  */
 cglib.simpleMesh = {		
-	faces : {},
+	faces : undefined,
 	vertices : {},
 	colors : undefined,
 	texCoords : undefined,
@@ -58,9 +58,12 @@ cglib.simpleMesh = {
 			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.texCoords), gl.STATIC_DRAW);
 		}
 
-		this.facesBufferId = gl.createBuffer();
-		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.facesBufferId);
-		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(this.faces), gl.STATIC_DRAW);	
+		if(this.faces) {
+			this.facesBufferId = gl.createBuffer();
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.facesBufferId);
+			gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(this.faces), gl.STATIC_DRAW);	
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+		}
 	},
 	
 	renderActually : function() {
@@ -81,11 +84,15 @@ cglib.simpleMesh = {
 			gl.vertexAttribPointer(this.texCoordsAttribLoc, 2, gl.FLOAT, false, 0, 0);		
 		}
 
-		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.facesBufferId);
-		
 		var drawMode = this.drawMode === undefined ? gl.TRIANGLES : this.drawMode;
-		
-		gl.drawElements(drawMode, this.faces.length, gl.UNSIGNED_SHORT, 0);	
+
+		if(this.faces) {
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.facesBufferId);			
+			gl.drawElements(drawMode, this.faces.length, gl.UNSIGNED_SHORT, 0);	
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);			
+		} else {
+			gl.drawArrays(drawMode, 0, this.vertices.length/3)
+		}
 
 		if(this.colors) {
 			gl.disableVertexAttribArray(this.colorsAttribLoc);
