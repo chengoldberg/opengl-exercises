@@ -177,7 +177,8 @@ var ex04 = function() {
 	var pMatrix = undefined;
 	var shaderProgram = undefined;
     var meshes = {};
-		
+	var frame = 0;
+
 	function updateMVP() {
 		var mvMatrix = mat4.create();
 		mat4.multiply(mvMatrix, wvMatrix, mwMatrix);
@@ -213,7 +214,7 @@ var ex04 = function() {
 
 		// It's ok to overide mw matrix here
 		mat4.identity(mwMatrix);
-		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(3, 0.75, 3, 0));
+		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(3, 0.75+Math.sin(frame*0.075)*0.25, 3, 0));
 		updateMVP();	
 		drawSphere(true);
 
@@ -224,6 +225,8 @@ var ex04 = function() {
 
 		mat4.identity(mwMatrix);
 		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(11, 1, 3, 0));		
+		mat4.rotate(mwMatrix, mwMatrix, frame*Math.PI/180, [0,1,0,0]);
+		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(0, 0, -1, 0));		
 		updateMVP();
 		drawCylinder();		
 	}
@@ -357,7 +360,7 @@ var ex04 = function() {
 	}
 
 	function initMeshes() {
-		meshes.cylinder = cglib.meshGenerator.genCylinderMesh(gl, 0.1, 0.1, 1, 8, 1);
+		meshes.cylinder = cglib.meshGenerator.genCylinderMesh(gl, 1, 1, 2, 40, 40);
 		meshes.sphereSmall = cglib.meshGenerator.genSphereMesh(gl, 0.5, 8, 8);
 		meshes.sphereLarge = cglib.meshGenerator.genSphereMesh(gl, 0.75, 32, 32);
 		meshes.floor = initFloorMesh();
@@ -412,6 +415,7 @@ var ex04 = function() {
 	}
 	
 	function animate() {	
+		frame++;
 		GameLogic.update();		
 	}
 	
