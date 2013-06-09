@@ -56,12 +56,17 @@ vec3 calc(vec3 normal) {
 	for(int i=0;i<4;++i) {
 		if(!uLightSource[i].isEnabled)
 			continue;
+
 		vec3 lightPosition = (uLightSource[i].position.xyz)/(uLightSource[i].position.w + 0.00001);
 		vec3 LightDirection = lightPosition - fvObjectPosition.xyz;
 		float distance = length(LightDirection);
 		vec3  fvLightDirection = normalize( LightDirection );
 		vec3  fvNormal         = normalize( Normal );
 		float fNDotL           = max( 0.0, dot( fvNormal, fvLightDirection )); 
+
+		float spotAngle = dot(-fvLightDirection, uLightSource[i].spotDirection);
+		if(acos(abs(spotAngle)) > radians(uLightSource[i].spotCutoff)) 
+			continue;
 
 		vec3  fvReflection     = normalize( ( ( 2.0 * fvNormal ) * fNDotL ) - fvLightDirection ); 
 		vec3  fvViewDirection  = normalize( ViewDirection );
@@ -75,7 +80,7 @@ vec3 calc(vec3 normal) {
 			uLightSource[i].constantAttenuation + 
 			uLightSource[i].linearAttenuation*distance + 
 			uLightSource[i].quadraticAttenuation*distance*distance);
-		result += fvTotalAmbient + (fvTotalDiffuse + fvTotalSpecular)*attenuation;
+		result += fvTotalAmbient + (fvTotalDiffuse + fvTotalSpecular)*attenuation*pow(spotAngle, uLightSource[i].spotExponent);
 	}	
 	return result.xyz;       
 }
