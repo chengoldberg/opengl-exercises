@@ -222,6 +222,15 @@ var ex04 = function() {
 			gl.uniform1f(uniforms.lights[lightIndex].quadraticAttenuation, K2);
 	}
 
+	function setLightSpot(lightIndex, spotDirection, spotExponent, spotCutoff) {
+		if(spotDirection)	
+			gl.uniform3fv(uniforms.lights[lightIndex].spotDirection, spotDirection);
+		if(spotExponent)
+			gl.uniform1f(uniforms.lights[lightIndex].spotExponent, spotExponent);
+		if(spotCutoff)
+			gl.uniform1f(uniforms.lights[lightIndex].spotCutoff, spotCutoff);
+	}
+
 	function setMaterial(ambient, diffuse, specular, specularPower, emission) {
 		if(ambient)	
 			gl.uniform4fv(uniforms.ambient, ambient);
@@ -313,6 +322,12 @@ var ex04 = function() {
 	    // Apply shaders
 		gl.useProgram(shaderProgram);
 		
+		// Flashlight
+		mat4.identity(wvMatrix);
+		mat4.identity(mwMatrix);
+		setLightStatus(1, true);		
+		setLightPosition(1, [0,0,0,1]);
+
 		// Create camera transformation
 		setupCamera();
 
@@ -462,13 +477,18 @@ var ex04 = function() {
 	    		ambient: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].ambient"),
 	    		diffuse: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].diffuse"),
 	    		specular: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].specular"),    			
+	    		spotDirection: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].spotDirection"),    			
+	    		spotExponent: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].spotExponent"),    			
+	    		spotCutoff: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].spotCutoff"),    			
 	    		constantAttenuation: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].constantAttenuation"),    			
 	    		linearAttenuation: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].linearAttenuation"),    			
 	    		quadraticAttenuation: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].quadraticAttenuation"),    			    		
 	    		isEnabled: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].isEnabled"),    			
 	    	};
-	    	// Set default value
+	    	// Set default values
 	    	gl.uniform1f(uniforms.lights[i].constantAttenuation, 1);
+	    	gl.uniform3fv(uniforms.lights[i].spotDirection, [0,0,-1]);
+	    	gl.uniform1f(uniforms.lights[i].spotCutoff, 180);
 	    }
 
 	    uniforms.ambient = gl.getUniformLocation(shaderProgram, "uMaterial.ambient");
@@ -503,6 +523,7 @@ var ex04 = function() {
 			[0,0,0,1],
 			[1, 0, 0, 1],
 			[1,1,1,1]);
+		setLightSpot(1, [0,0,-1], 100, 10);
 
 		// Setup sphere light
 		setLightIntensity(2, 
