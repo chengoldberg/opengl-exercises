@@ -190,11 +190,30 @@ var ex04 = function() {
 	    gl.uniformMatrix3fv(uniforms.normalMatrix, false, normalMatrix);
 	}	
 
-	function setLightPosition(pos) {
-		gl.uniform4fv(uniforms.lightPosition, pos);
+	function setLightStatus(lightIndex, status) {
+		gl.uniform1i(uniforms.lights[lightIndex].isEnabled, status);
 	}
 
-	function setMaterial(ambient, diffuse, specular, specularPower) {
+	function setLightPosition(lightIndex, pos) {
+		var lightPosition = vec4.create();
+		
+		var mvMatrix = mat4.create();
+		mat4.multiply(mvMatrix, wvMatrix, mwMatrix);		
+
+		vec4.transformMat4(lightPosition, pos, mvMatrix);
+		gl.uniform4fv(uniforms.lights[lightIndex].position, lightPosition);
+	}	
+
+	function setLightIntensity(lightIndex, ambient, diffuse, specular) {
+		if(ambient)	
+			gl.uniform4fv(uniforms.lights[lightIndex].ambient, ambient);
+		if(diffuse)
+			gl.uniform4fv(uniforms.lights[lightIndex].diffuse, diffuse);
+		if(specular)
+			gl.uniform4fv(uniforms.lights[lightIndex].specular, specular);
+	}
+
+	function setMaterial(ambient, diffuse, specular, specularPower, emission) {
 		if(ambient)	
 			gl.uniform4fv(uniforms.ambient, ambient);
 		if(diffuse) {
@@ -204,6 +223,8 @@ var ex04 = function() {
 			gl.uniform4fv(uniforms.specular, specular);
 		if(specularPower)
 			gl.uniform1f(uniforms.specularPower, specularPower);
+		if(emission)
+			gl.uniform4fv(uniforms.emission, emission);		
 	}
 
 	function setColor(r,g,b) {
@@ -212,17 +233,37 @@ var ex04 = function() {
 
 	function drawObjects() {
 
+		// Draw glowing sphere
+		setMaterial(
+			[1,1,0,1],
+			[1,1,0,1],
+			[1,1,1,1],
+			20,
+			[0.5,0.5,0,1]);
 		// It's ok to overide mw matrix here
 		mat4.identity(mwMatrix);
 		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(3, 0.75+Math.sin(frame*0.075)*0.25, 3, 0));
 		updateMVP();	
 		drawSphere(true);
 
+		// Draw big sphere
+		setMaterial(
+			[1,1,1,1],
+			[1,1,1,1],
+			[1,1,1,1],
+			100,
+			[0,0,0,1]);
 		mat4.identity(mwMatrix);
 		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(7, 1, 3, 0));		
 		updateMVP();
 		drawSphere(false)
 
+		setMaterial(
+			[1,1,1,1],
+			[1,1,1,1],
+			[1,1,1,1],
+			100,
+			[0,0,0,1]);
 		mat4.identity(mwMatrix);
 		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(11, 1, 3, 0));		
 		mat4.rotate(mwMatrix, mwMatrix, frame*Math.PI/180, [0,1,0,0]);
@@ -232,11 +273,25 @@ var ex04 = function() {
 	}
 
 	function drawWalls() {		
+		setMaterial(
+			[0.75,0.75,0.75,1],
+			[0.75,0.75,0.75,1],
+			[1,1,1,1],
+			100,
+			[0,0,0,1]);
+
 		meshes.walls.setAttribLocs(attribs);
 		meshes.walls.render();
 	}
 
 	function drawFloor() {		
+		setMaterial(
+			[0.65,0.65,0.65,1],
+			[0.65,0.65,0.65,1],
+			[1,1,1,1],
+			100,
+			[0,0,0,1]);
+
 		meshes.floor.setAttribLocs(attribs);
 		meshes.floor.render();
 	}
@@ -252,14 +307,11 @@ var ex04 = function() {
 		// Create camera transformation
 		setupCamera();
 
-		var lightPosition = vec4.fromValues(8,8,8,1);
-		vec4.transformMat4(lightPosition, lightPosition, wvMatrix);
-		setLightPosition(lightPosition);
-		setMaterial(
-			[0,0,0,1],
-			[1.0,0,0,1],
-			[1,1,1,1],
-			20);
+		// Sky light
+		setLightStatus(0, true);
+		mat4.identity(mwMatrix);
+		setLightPosition(0, [0.5,1,1,0]);		
+		//setLightPosition(1, [4,4,4,1]);		
 
 		// Draw world
 		mat4.identity(mwMatrix);
@@ -387,11 +439,23 @@ var ex04 = function() {
 	    uniforms.normalMatrix = gl.getUniformLocation(shaderProgram, "uNormalMatrix");
 	    uniforms.projectionMatrix = gl.getUniformLocation(shaderProgram, "uProjectionMatrix");
 	    uniforms.modelViewMatrix = gl.getUniformLocation(shaderProgram, "uModelViewMatrix");   
-	    uniforms.lightPosition = gl.getUniformLocation(shaderProgram, "uLightPosition");
-	    uniforms.ambient = gl.getUniformLocation(shaderProgram, "uAmbient");
-	    uniforms.diffuse = gl.getUniformLocation(shaderProgram, "uDiffuse");
-	    uniforms.specular = gl.getUniformLocation(shaderProgram, "uSpecular");
-	    uniforms.specularPower = gl.getUniformLocation(shaderProgram, "uSpecularPower");
+
+		uniforms.lights = [];
+	    for(var i=0;i<4;++i) {
+	    	uniforms.lights[i] = {
+	    		position: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].position"),
+	    		ambient: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].ambient"),
+	    		diffuse: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].diffuse"),
+	    		specular: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].specular"),    			
+	    		isEnabled: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].isEnabled"),    			
+	    	};
+	    }
+
+	    uniforms.ambient = gl.getUniformLocation(shaderProgram, "uMaterial.ambient");
+	    uniforms.diffuse = gl.getUniformLocation(shaderProgram, "uMaterial.diffuse");
+	    uniforms.specular = gl.getUniformLocation(shaderProgram, "uMaterial.specular");
+	    uniforms.specularPower = gl.getUniformLocation(shaderProgram, "uMaterial.shininess");
+	    uniforms.emission = gl.getUniformLocation(shaderProgram, "uMaterial.emission");
 	}
 	
 	function initWorld() {
@@ -407,7 +471,25 @@ var ex04 = function() {
 		gl = context;
 	    initShaders();
 	    initMeshes();
-    
+
+		// Setup sky light	
+		setLightIntensity(0, 
+			[0,0,0,0]
+			[0.8, 0.8, 0.8, 1],
+			[1,1,1,1]);
+
+		// Setup flashlight
+		setLightIntensity(1, 
+			[0,0,0,0]
+			[1, 0, 0, 1],
+			[1,1,1,1]);
+
+		// Setup sphere light
+		setLightIntensity(2, 
+			[0,0,0,0]
+			[1, 1, 0, 1],
+			[1,1,0,1]);		
+
 		// Set background color to gray    
 	    gl.clearColor(0, 0, 0, 1); 
 
