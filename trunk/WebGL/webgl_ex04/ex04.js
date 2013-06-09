@@ -213,6 +213,15 @@ var ex04 = function() {
 			gl.uniform4fv(uniforms.lights[lightIndex].specular, specular);
 	}
 
+	function setLightAttenuation(lightIndex, K0, K1, K2) {
+		if(K0)	
+			gl.uniform1f(uniforms.lights[lightIndex].constantAttenuation, K0);
+		if(K1)
+			gl.uniform1f(uniforms.lights[lightIndex].linearAttenuation, K1);
+		if(K2)
+			gl.uniform1f(uniforms.lights[lightIndex].quadraticAttenuation, K2);
+	}
+
 	function setMaterial(ambient, diffuse, specular, specularPower, emission) {
 		if(ambient)	
 			gl.uniform4fv(uniforms.ambient, ambient);
@@ -308,9 +317,15 @@ var ex04 = function() {
 		setupCamera();
 
 		// Sky light
-		setLightStatus(0, true);
 		mat4.identity(mwMatrix);
+		setLightStatus(0, true);		
 		setLightPosition(0, [0.5,1,1,0]);		
+
+		// Sphere light
+		setLightStatus(2, true);		
+		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(3, 0.75+Math.sin(frame*0.075)*0.25, 3, 0));
+		setLightPosition(2, [0,0,0,1]);				
+
 		//setLightPosition(1, [4,4,4,1]);		
 
 		// Draw world
@@ -447,15 +462,20 @@ var ex04 = function() {
 	    		ambient: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].ambient"),
 	    		diffuse: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].diffuse"),
 	    		specular: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].specular"),    			
+	    		constantAttenuation: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].constantAttenuation"),    			
+	    		linearAttenuation: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].linearAttenuation"),    			
+	    		quadraticAttenuation: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].quadraticAttenuation"),    			    		
 	    		isEnabled: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].isEnabled"),    			
 	    	};
+	    	// Set default value
+	    	gl.uniform1f(uniforms.lights[i].constantAttenuation, 1);
 	    }
 
 	    uniforms.ambient = gl.getUniformLocation(shaderProgram, "uMaterial.ambient");
 	    uniforms.diffuse = gl.getUniformLocation(shaderProgram, "uMaterial.diffuse");
 	    uniforms.specular = gl.getUniformLocation(shaderProgram, "uMaterial.specular");
 	    uniforms.specularPower = gl.getUniformLocation(shaderProgram, "uMaterial.shininess");
-	    uniforms.emission = gl.getUniformLocation(shaderProgram, "uMaterial.emission");
+	    uniforms.emission = gl.getUniformLocation(shaderProgram, "uMaterial.emission");	    
 	}
 	
 	function initWorld() {
@@ -474,21 +494,22 @@ var ex04 = function() {
 
 		// Setup sky light	
 		setLightIntensity(0, 
-			[0,0,0,0]
+			[0.2,0.2,0.2,1],
 			[0.8, 0.8, 0.8, 1],
 			[1,1,1,1]);
 
 		// Setup flashlight
 		setLightIntensity(1, 
-			[0,0,0,0]
+			[0,0,0,1],
 			[1, 0, 0, 1],
 			[1,1,1,1]);
 
 		// Setup sphere light
 		setLightIntensity(2, 
-			[0,0,0,0]
+			[0, 0, 0, 1],
 			[1, 1, 0, 1],
-			[1,1,0,1]);		
+			[1, 1, 0, 1]);		
+		setLightAttenuation(2,1,0,0.5);
 
 		// Set background color to gray    
 	    gl.clearColor(0, 0, 0, 1); 

@@ -44,6 +44,7 @@ uniform LightSourceParameters uLightSource[4];
 
 vec3 calc(vec3 normal) {
 	//TODO:
+
 	vec3 uEyePosition = vec3(0,0,0);
 
 	vec4 fvObjectPosition = uModelViewMatrix * vec4(aPosition,1);
@@ -57,9 +58,10 @@ vec3 calc(vec3 normal) {
 			continue;
 		vec3 lightPosition = (uLightSource[i].position.xyz)/(uLightSource[i].position.w + 0.00001);
 		vec3 LightDirection = lightPosition - fvObjectPosition.xyz;
+		float distance = length(LightDirection);
 		vec3  fvLightDirection = normalize( LightDirection );
 		vec3  fvNormal         = normalize( Normal );
-		float fNDotL           = dot( fvNormal, fvLightDirection ); 
+		float fNDotL           = max( 0.0, dot( fvNormal, fvLightDirection )); 
 
 		vec3  fvReflection     = normalize( ( ( 2.0 * fvNormal ) * fNDotL ) - fvLightDirection ); 
 		vec3  fvViewDirection  = normalize( ViewDirection );
@@ -69,9 +71,12 @@ vec3 calc(vec3 normal) {
 		vec4  fvTotalDiffuse   = uMaterial.diffuse * fNDotL * uLightSource[i].diffuse; 
 		vec4  fvTotalSpecular  = uMaterial.specular * ( pow( fRDotV, uMaterial.shininess ) ) * uLightSource[i].specular;
 
-		result += fvTotalAmbient + fvTotalDiffuse + fvTotalSpecular;
-	}
-
+		float attenuation = 1.0/(
+			uLightSource[i].constantAttenuation + 
+			uLightSource[i].linearAttenuation*distance + 
+			uLightSource[i].quadraticAttenuation*distance*distance);
+		result += fvTotalAmbient + (fvTotalDiffuse + fvTotalSpecular)*attenuation;
+	}	
 	return result.xyz;       
 }
 
