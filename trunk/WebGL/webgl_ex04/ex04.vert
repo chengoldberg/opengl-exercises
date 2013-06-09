@@ -8,14 +8,39 @@ uniform mat4 uModelViewMatrix;
 uniform mat4 uProjectionMatrix;
 uniform mediump bool uLightingEnabled;
 
-uniform vec4 uLightPosition;
-uniform vec4 uAmbient;  
-uniform vec4 uDiffuse;
-uniform vec4 uSpecular;
-uniform float uSpecularPower;
-
 varying vec3 vFrontColor;
 varying vec3 vBackColor;
+
+struct LightSourceParameters 
+{   
+   vec4 ambient;              // Aclarri   
+   vec4 diffuse;              // Dcli   
+   vec4 specular;             // Scli   
+   vec4 position;             // Ppli   
+   vec4 halfVector;           // Derived: Hi   
+   vec3 spotDirection;        // Sdli   
+   float spotExponent;        // Srli   
+   float spotCutoff;          // Crli                              
+                              // (range: [0.0,90.0], 180.0)   
+   float spotCosCutoff;       // Derived: cos(Crli)                 
+                              // (range: [1.0,0.0],-1.0)   
+   float constantAttenuation; // K0   
+   float linearAttenuation;   // K1   
+   float quadraticAttenuation;// K2  
+   bool isEnabled;   
+};    
+
+struct MaterialParameters  
+{   
+   vec4 emission;    // Ecm   
+   vec4 ambient;     // Acm   
+   vec4 diffuse;     // Dcm   
+   vec4 specular;    // Scm   
+   float shininess;  // Srm  
+};  
+
+uniform MaterialParameters uMaterial;  
+uniform LightSourceParameters uLightSource[4];
 
 vec3 calc(vec3 normal) {
 	//TODO:
@@ -23,23 +48,31 @@ vec3 calc(vec3 normal) {
 
 	vec4 fvObjectPosition = uModelViewMatrix * vec4(aPosition,1);
 
-	vec3 ViewDirection  = uEyePosition - fvObjectPosition.xyz;
-	vec3 LightDirection = uLightPosition.xyz - fvObjectPosition.xyz;
+	vec3 ViewDirection  = uEyePosition - fvObjectPosition.xyz;	
 	vec3 Normal         = uNormalMatrix * normal;   
 
-	vec3  fvLightDirection = normalize( LightDirection );
-	vec3  fvNormal         = normalize( Normal );
-	float fNDotL           = dot( fvNormal, fvLightDirection ); 
+	vec4 result = vec4(0) + uMaterial.emission;	
+	for(int i=0;i<4;++i) {
+		if(!uLightSource[i].isEnabled)
+			continue;
+		vec3 lightPosition = (uLightSource[i].position.xyz)/(uLightSource[i].position.w + 0.00001);
+		vec3 LightDirection = lightPosition - fvObjectPosition.xyz;
+		vec3  fvLightDirection = normalize( LightDirection );
+		vec3  fvNormal         = normalize( Normal );
+		float fNDotL           = dot( fvNormal, fvLightDirection ); 
 
-	vec3  fvReflection     = normalize( ( ( 2.0 * fvNormal ) * fNDotL ) - fvLightDirection ); 
-	vec3  fvViewDirection  = normalize( ViewDirection );
-	float fRDotV           = max( 0.0, dot( fvReflection, fvViewDirection ) );
+		vec3  fvReflection     = normalize( ( ( 2.0 * fvNormal ) * fNDotL ) - fvLightDirection ); 
+		vec3  fvViewDirection  = normalize( ViewDirection );
+		float fRDotV           = max( 0.0, dot( fvReflection, fvViewDirection ) );
 
-	vec4  fvTotalAmbient   = uAmbient; 
-	vec4  fvTotalDiffuse   = uDiffuse * fNDotL; 
-	vec4  fvTotalSpecular  = uSpecular * ( pow( fRDotV, uSpecularPower ) );
+		vec4  fvTotalAmbient   = uMaterial.ambient * uLightSource[i].ambient; 
+		vec4  fvTotalDiffuse   = uMaterial.diffuse * fNDotL * uLightSource[i].diffuse; 
+		vec4  fvTotalSpecular  = uMaterial.specular * ( pow( fRDotV, uMaterial.shininess ) ) * uLightSource[i].specular;
 
-	return ( fvTotalAmbient + fvTotalDiffuse + fvTotalSpecular ).xyz;       
+		result += fvTotalAmbient + fvTotalDiffuse + fvTotalSpecular;
+	}
+
+	return result.xyz;       
 }
 
 void main(void)
