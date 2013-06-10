@@ -265,6 +265,7 @@ var ex04 = function() {
 		drawSphere(true);
 
 		// Draw big sphere
+		setLightStatus(2, false);
 		setMaterial(
 			[1,1,1,1],
 			[1,1,1,1],
@@ -275,6 +276,7 @@ var ex04 = function() {
 		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(7, 1, 3, 0));		
 		updateMVP();
 		drawSphere(false)
+		setLightStatus(2, true);
 
 		setMaterial(
 			[1,1,1,1],
