@@ -276,7 +276,7 @@ var ex04 = function() {
 		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(7, 1, 3, 0));		
 		updateMVP();
 		drawSphere(false)
-		setLightStatus(2, true);
+		setLightStatus(2, true	);
 
 		setMaterial(
 			[1,1,1,1],
@@ -458,7 +458,7 @@ var ex04 = function() {
 	    var fragmentShader = cglib.WebGLCommon.compileShader(gl, shaders.fs, gl.FRAGMENT_SHADER);
 	    
 	    // Link program
-	    shaderProgram = cglib.WebGLCommon.linkProgram(gl, vertexShader, fragmentShader);
+	    shaderProgram = cglib.WebGLCommon.linkProgram(gl, [vertexShader, fragmentShader]);
 	    gl.useProgram(shaderProgram);
 	   
 	    // Store attrib IDs

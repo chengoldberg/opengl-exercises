@@ -10,7 +10,7 @@ var cglib = cglib || {};
  */
 cglib.WebGLCommon = function() {
 		
-	function compileShader(gl, str,type) {	
+	function compileShader(gl, str, type) {	
 	    var shader;
 	    shader = gl.createShader(type);
 	
@@ -25,15 +25,15 @@ cglib.WebGLCommon = function() {
 	    return shader;
 	}
 	
-	function linkProgram(gl, vs,fs) {
+	function linkProgram(gl, shaders) {
 	    program = gl.createProgram();
-	    gl.attachShader(program, vs);
-	    gl.attachShader(program, fs);
+	    for(var shader in shaders) {
+	    	gl.attachShader(program, shaders[shader]);	
+	    }
 	    gl.linkProgram(program);
 	
 	    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-	    	alert(gl.getProgramInfoLog(program));
-	        alert("Could not initialise shaders");
+	        alert("Could not link shaders: " + gl.getProgramInfoLog(program));
 	    }	
 	    return program;
 	}
