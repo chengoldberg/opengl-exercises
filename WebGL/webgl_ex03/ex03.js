@@ -190,7 +190,7 @@ var ex03 = function() {
 	    var fragmentShader = cglib.WebGLCommon.compileShader(gl, shaders.fs, gl.FRAGMENT_SHADER);
 	    
 	    // Link program
-	    shaderProgram = cglib.WebGLCommon.linkProgram(gl, vertexShader, fragmentShader);
+	    shaderProgram = cglib.WebGLCommon.linkProgram(gl, [vertexShader, fragmentShader]);
 	    gl.useProgram(shaderProgram);
 	   
 	    // Store attrib IDs
