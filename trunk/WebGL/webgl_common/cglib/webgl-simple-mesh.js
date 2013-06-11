@@ -16,6 +16,7 @@ cglib.SimpleMesh = {
 	gl : undefined,
 	drawMode : undefined,
 	elementsNum : undefined,
+	elementsPerFace : 3,
 
 	/**
 	 * Faces is optional - otherwise uses sequential rendering
@@ -137,6 +138,42 @@ cglib.SimpleMesh = {
         return obj;
 	},
 }
+
+cglib.meshLoader = {
+	fromText : function(gl, text) {
+    	var buffer = text.split(/\s+/);
+		var cnt = 0;
+
+		if(buffer[cnt++] != 'OFF')
+			throw "Unsupported file-format"
+		var verticesAmount = parseInt(buffer[cnt++]);
+		var facesAmount = parseInt(buffer[cnt++]);
+		cnt++;
+
+		var vertices = [];
+		var faces = [];
+
+		for(var i=0; i<verticesAmount; ++i) {
+			vertices.push(
+				parseFloat(buffer[cnt++]),
+				parseFloat(buffer[cnt++]),
+				parseFloat(buffer[cnt++]));
+		}
+
+		for(var i=0; i<facesAmount; ++i) {
+			cnt++;
+			faces.push(
+				parseFloat(buffer[cnt++]),
+				parseFloat(buffer[cnt++]),
+				parseFloat(buffer[cnt++]));
+		}		
+	
+		var mesh = cglib.SimpleMesh.extend()
+		mesh.init(gl, faces)
+			.addAttrib('position', 3, vertices);
+		return mesh; 
+	}
+};
 
 cglib.meshGenerator = {		
 	genScreenAlignedQuad : function(gl) {
@@ -269,4 +306,63 @@ cglib.meshGenerator = {
 			.addAttrib('normal', 3, normalData);
 		return mesh; 
 	},
+
+	genNormals : function(mesh) {
+
+		var normalsCount = [];
+		var normals = [];
+		var verticesAmount = mesh.elementsNum;
+
+		for(var i = 0;i<verticesAmount;++i) {
+			normalsCount[i] = 0;
+			normals[i] = vec3.create();
+		}
+		
+		var vertices = mesh.attribs['position'].clientBuffer;
+		var faces = mesh.faces;
+		var facesAmount = faces.length/mesh.elementsPerFace;
+		var vertexIndex = -1;
+
+		for (var i=0; i < facesAmount; ++i){
+
+			vertexIndex = faces[3*i + 0];
+			var x1 = vertices[3*vertexIndex + 0];
+			var y1 = vertices[3*vertexIndex + 1];
+			var z1 = vertices[3*vertexIndex + 2];
+
+			vertexIndex = faces[3*i + 1];
+			var x2 = vertices[3*vertexIndex + 0];
+			var y2 = vertices[3*vertexIndex + 1];
+			var z2 = vertices[3*vertexIndex + 2];
+
+			vertexIndex = faces[3*i + 2];
+			var x3 = vertices[3*vertexIndex + 0];
+			var y3 = vertices[3*vertexIndex + 1];
+			var z3 = vertices[3*vertexIndex + 2];
+
+			var pen = [
+				y1 * (z2 - z3) + y2 * (z3 - z1) + y3 * (z1 - z2),
+				z1 * (x2 - x3) + z2 * (x3 - x1) + z3 * (x1 - x2),
+				x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2)]
+
+			vec3.normalize(pen, pen);
+
+			for(var j=0; j < 3;++j){
+				vertexIndex = faces[3*i + j];			
+				normalsCount[vertexIndex]++;			
+				vec3.add(normals[vertexIndex], normals[vertexIndex], pen);
+			}
+		}
+
+		normalData = [];
+		for(var i=0;i<verticesAmount;++i) {
+			var N = normals[i];
+			var d = normalsCount[i];
+			N = [N[0]/d, N[1]/d, N[2]/d];
+			vec3.normalize(N, N);
+			normalData.push(N[0], N[1], N[2]);
+		}
+
+		mesh.addAttrib('normal', 3, normalData);
+	}
 };
