@@ -29,7 +29,6 @@ struct MaterialParameters
 };  
 
 uniform mat3 uNormalMatrix;
-uniform mediump bool uLightingEnabled;
 uniform MaterialParameters uMaterial;  
 uniform LightSourceParameters uLightSource[4];
 

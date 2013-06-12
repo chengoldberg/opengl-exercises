@@ -18,6 +18,10 @@ cglib.SimpleMesh = {
 	elementsNum : undefined,
 	elementsPerFace : 3,
 
+	setDrawMode : function(val) {
+		this.drawMode = val;
+	},
+
 	/**
 	 * Faces is optional - otherwise uses sequential rendering
 	 */
@@ -109,7 +113,7 @@ cglib.SimpleMesh = {
 			}
 		}		
 
-		var drawMode = this.drawMode === undefined ? gl.TRIANGLES : this.drawMode;
+		var drawMode = this.drawMode == undefined ? gl.TRIANGLES : this.drawMode;
 
 		if(this.faces) {
 			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.facesBufferId);			
