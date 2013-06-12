@@ -1,167 +1,113 @@
+var p = [
+	[0,0],
+	[20,0],
+	[15,25],
+	[30,6]	
+];
+
+function calcCurveAt(u) {
+	var c0 = (1-u)*(1-u)*(1-u)*p[0][0]+ 3*(1-u)*(1-u)*u*p[1][0] + 3*(1-u)*u*u*p[2][0] + u*u*u*p[3][0];
+	var c1 = (1-u)*(1-u)*(1-u)*p[0][1]+ 3*(1-u)*(1-u)*u*p[1][1] + 3*(1-u)*u*u*p[2][1] + u*u*u*p[3][1];
+
+	return [c0,c1];
+}
+
+var Airplane = {
+	startTime : undefined,
+	position : undefined,
+	angle : undefined,
+	pigment : undefined,
+
+	init : function(startTime) {
+		this.startTime = startTime;
+		this.pigment = [Math.random(),Math.random(),Math.random(),1];
+	},
+
+	update : function(time) {
+		var u = (time - this.startTime) -Math.floor(time - this.startTime);
+
+		// Calc new position
+		var c0 = (1-u)*(1-u)*(1-u)*p[0][0]+ 3*(1-u)*(1-u)*u*p[1][0] + 3*(1-u)*u*u*p[2][0] + u*u*u*p[3][0];
+		var c1 = (1-u)*(1-u)*(1-u)*p[0][1]+ 3*(1-u)*(1-u)*u*p[1][1] + 3*(1-u)*u*u*p[2][1] + u*u*u*p[3][1];
+		this.position = [c0, c1];
+
+		// Calc new derivative
+		var d0 = 3*(p[1][0]-p[0][0])*(1-u)*(1-u) + 
+			3*(p[2][0]-p[1][0])*2*u*(1-u) + 
+			3*(p[3][0]-p[2][0])*u*u;
+		var d1 = 3*(p[1][1]-p[0][1])*(1-u)*(1-u) + 
+			3*(p[2][1]-p[1][1])*2*u*(1-u) + 
+			3*(p[3][1]-p[2][1])*u*u;
+
+		// Transform derivative to degrees 
+		this.angle = Math.PI/2-Math.atan2(d0,d1);			
+	},
+	
+	// Foundation helpers
+	extend: function(props) {
+        var prop, obj;
+        obj = Object.create(this);
+        for(prop in props) {
+            if(props.hasOwnProperty(prop)) {
+                obj[prop] = props[prop];
+            }
+        }
+        return obj;
+	},	
+}
+
 var GameLogic = function() {
-
-	var angle = 0;
-	var actions = {
-		moveForward: false,
-		moveBackward: false,
-		turnLeft: false,
-		turnRight: false,
-	};
-
-	var location = vec2.create();
-
-	var verWallsTable = undefined;
-	var horWallsTable = undefined;
-
-	var horWalls = [
-		[1,1],
-		[2,1],
-		[3,1],
-		[4,1],
-
-		[5,1],
-		[6,1],
-		[7,1],
-		[8,1],
-
-		[9,1],
-		[10,1],
-		[11,1],
-		[12,1],
-
-		[1,5],
-		[4,5],
-
-		[5,5],
-		[8,5],
-
-		[9,5],
-		[12,5]				
-	];
-
-	var verWalls = [
-		[1,1],
-		[1,2],
-		[1,3],
-		[1,4],
-
-		[5,1],
-		[5,2],
-		[5,3],
-		[5,4],
-
-		[9,1],
-		[9,2],
-		[9,3],
-		[9,4],
-
-		[13,1],
-		[13,2],
-		[13,3],
-		[13,4]				
-	];		
+	timeStep = 0.003;
+	time = 0;
+	airplanes = [];
 
 	function init() {
-		//TODO: change in original as well!
-		angle = Math.PI/2;
-		location = [8,8];		
-		initCollisionTables();
+
 	}
 
 	function update() {
-		if(actions.moveForward || actions.moveBackward) {
-			dx = Math.cos(angle);
-			dy = Math.sin(angle);
+		// Advance time counter
+		time += timeStep;
 
-			if(actions.moveForward) {
-				location[0] -= dx*0.1;
-				location[1] -= dy*0.1;				
-			}
-			if(actions.moveBackward) {
-				location[0] += dx*0.1;
-				location[1] += dy*0.1;				
-			}
-
-			// Check collision
-			var curX = Math.floor(location[0]);
-			var curY = Math.floor(location[1]);
-			var offX = location[0]-curX;
-			var offY = location[1]-curY;
-
-			var pad = 0.2;
-			if(offY<pad && horWallsTable[curX][curY])
-				location[1] = curY + pad;
-			if(offY>1-pad && horWallsTable[curX][curY+1])
-				location[1] = curY + 1 - pad;
-			if(offX<pad && verWallsTable[curX][curY])
-				location[0] = curX + pad;
-			if(offX>1-pad && verWallsTable[curX+1][curY])
-				location[0] = curX + 1 - pad;							
+		for(var i in airplanes) {
+			airplanes[i].update(time);
 		}
-		if(actions.turnLeft) {
-			angle -= 0.075;				
-		}
-		if(actions.turnRight) {
-			angle += 0.075;				
-		}		
 	}
 
-	function createMultiBoolArray(width, height) {
-	 	var table = [];
-		table[width] = undefined;		
-		for(var i = 0;i<width; ++i) {
-			table[i] = new Int8Array(height);
+	function addAirplane() {
+		var airplane = Airplane.extend();
+		airplane.init(time);
+		airplanes.push(airplane);
+		console.log('Added airplane - now has ' + airplanes.length);
+	}
+
+	function removeAirplane() {
+		if(airplanes.length > 1) {
+			airplanes.pop();
 		}
-		return table;
+		console.log('Remove airplane - now has ' + airplanes.length);
 	}
 
-	function initCollisionTables() {		
-
-		var boardWidth = getBoardSize()[0];
-		var boardHeight = getBoardSize()[1];
-
-		horWallsTable = createMultiBoolArray(boardWidth+1, boardHeight+1);
-		verWallsTable = createMultiBoolArray(boardWidth+1, boardHeight+1);
-		
-		for(var i=0;i<horWalls.length;++i) {
-			var cell = horWalls[i];
-			horWallsTable[cell[0]][cell[1]] = true;
-		}
-		for(var i=0;i<verWalls.length;++i) {
-			var cell = verWalls[i];		
-			verWallsTable[cell[0]][cell[1]] = true;
-		}		
-
-		for(var i = 0;i<boardWidth;++i) {
-			horWallsTable[i][0] = true;
-			horWallsTable[i][boardHeight] = true;
-		}
-		for(var i = 0;i<boardHeight;++i) {
-			verWallsTable[0][i] = true;
-			verWallsTable[boardWidth][i] = true;
-		}		
+	function speedUp() {
+		timeStep *= 2;
 	}
-	// JS note: when doing a module-like closure - you can't "expose" primitive values (e.g. can't return angle)
-	// Therefore must use getters.
-	function getAngle() {
-		return angle;
+
+	function speedDown() {
+		timeStep /= 2;
 	}
-	function getLocation() {
-		return location;
-	}
-	function getBoardSize() {
-		return [14, 20];
+
+	function getAirplanes() {
+		return airplanes;
 	}
 
 	return {
 		init: init,
-		update: update,
-		actions: actions,
-		getAngle: getAngle,
-		getLocation: getLocation,
-		getBoardSize: getBoardSize,
-		horWalls: horWalls,
-		verWalls: verWalls,
+		update: update,	
+		addAirplane : addAirplane,
+		removeAirplane : removeAirplane,
+		speedUp : speedUp,
+		speedDown : speedDown,
+		getAirplanes : getAirplanes,
 	}
 } ();
 
@@ -193,6 +139,10 @@ var ex05 = function() {
 	    mat3.normalFromMat4(normalMatrix, mvMatrix);
 	    gl.uniformMatrix3fv(uniforms.normalMatrix, false, normalMatrix);
 	}	
+
+	function setLighting(status) {
+		gl.uniform1i(uniforms.lightingEnabled, status);
+	}
 
 	function setLightStatus(lightIndex, status) {
 		gl.uniform1i(uniforms.lights[lightIndex].isEnabled, status);
@@ -253,16 +203,10 @@ var ex05 = function() {
 		//gl.uniform3fv(uniforms.color, [r,g,b]);
 	}
 
-	function drawWalls() {		
-		setMaterial(
-			[0.75,0.75,0.75,1],
-			[0.75,0.75,0.75,1],
-			[1,1,1,1],
-			100,
-			[0,0,0,1]);
-
-		meshes.walls.setAttribLocs(attribs);
-		meshes.walls.render();
+	function drawCurve() {				
+		meshes.curve.setAttribLocs(attribs);
+		meshes.curve.setDrawMode(gl.LINE_STRIP);
+		meshes.curve.render();
 	}
 
 	function drawFloor() {		
@@ -279,49 +223,58 @@ var ex05 = function() {
 
 	function renderWorld() {
 		
-		// Clear FrameBuffer
-	    gl.clear(gl.COLOR_BUFFER_BIT);
-	
 	    // Apply shaders
 		gl.useProgram(shaderProgram);
 		
-		// Flashlight
-		mat4.identity(wvMatrix);
-		mat4.identity(mwMatrix);
-		setLightStatus(1, true);		
-		setLightPosition(1, [0,0,0,1]);
-
-		// Create camera transformation
-		setupCamera();
-
 		// Sky light
 		mat4.identity(mwMatrix);
 		setLightStatus(0, true);		
 		setLightPosition(0, [0.5,1,1,0]);		
 
-		// Sphere light
-		setLightStatus(2, true);		
-		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(3, 0.75+Math.sin(frame*0.075)*0.25, 3, 0));
-		setLightPosition(2, [0,0,0,1]);				
-
 		//setLightPosition(1, [4,4,4,1]);		
 
-		// Draw world
+		// Draw world		
 		mat4.identity(mwMatrix);
 		updateMVP();
-		drawFloor();
-		drawWalls();
-		drawAirplane();
+		//drawFloor();
+		setLighting(false);
+		drawCurve();
+		setLighting(true);
+		drawAirplanes();
 	};
 
 	/**
 	 * Draw a unit size RGB cube
 	 */
-	function drawAirplane() {				
+	function drawAirplane(airplane) {		
+		mat4.identity(mwMatrix);
+		mat4.translate(mwMatrix, mwMatrix, [airplane.position[0], airplane.position[1],0,0]);
+		mat4.rotate(mwMatrix, mwMatrix, airplane.angle, [0,0,1,0]);
+
+		// Object transfromations (specific to "bomber1")
+		mat4.rotate(mwMatrix, mwMatrix, Math.PI/2, [0,1,0,0]);
+		mat4.rotate(mwMatrix, mwMatrix, -Math.PI/2, [1,0,0,0]);
+		mat4.scale(mwMatrix, mwMatrix, [0.1,0.1,0.1,1]);
+		updateMVP();
+
+		setMaterial(
+			airplane.pigment,
+			airplane.pigment,
+			[1,1,1,1],
+			100,
+			[0,0,0,1]);
+
 		meshes.airplane.setAttribLocs(attribs);
 		meshes.airplane.render();				
 	}
-	
+
+	function drawAirplanes() {
+		var airplanes = GameLogic.getAirplanes();
+		for(var airplane in airplanes) {
+			drawAirplane(airplanes[airplane]);
+		}
+	}	
+
 	function drawSphere(isSmall) {	
 		// Render
 		if(isSmall) {
@@ -333,45 +286,19 @@ var ex05 = function() {
 		}
 	}
 
-	function initWallsMesh() {		
+	function initCurveMesh() {		
 		var vertexPositionData = [];
-		var normalData = [];
-		var pushRepeat = function(data, val, times) {
-			for(var i=0;i<times;++i) {
-				data.push(val[0], val[1], val[2]);
-			}
+
+		for(var i=0;i<=1;i+=0.01) {
+		 	var point = calcCurveAt(i);
+			vertexPositionData.push(point[0], point[1]);
 		}
-
-		for(var i=0;i<GameLogic.horWalls.length;++i) {
-			var wall = GameLogic.horWalls[i];
-			vertexPositionData.push(wall[0], 0, wall[1]);
-			vertexPositionData.push(wall[0], 2, wall[1]);
-			vertexPositionData.push(wall[0]+1, 2, wall[1]);
-
-			vertexPositionData.push(wall[0]+1, 2, wall[1]);
-			vertexPositionData.push(wall[0]+1, 0, wall[1]);			
-			vertexPositionData.push(wall[0], 0, wall[1]);
-
-			pushRepeat(normalData, [0,0,-1], 6);
-		}
-
-		for(var i=0;i<GameLogic.verWalls.length;++i) {
-			var wall = GameLogic.verWalls[i];
-			vertexPositionData.push(wall[0], 0, wall[1]);
-			vertexPositionData.push(wall[0], 2, wall[1]);
-			vertexPositionData.push(wall[0], 2, wall[1]+1);
-
-			vertexPositionData.push(wall[0], 2, wall[1]+1);
-			vertexPositionData.push(wall[0], 0, wall[1]+1);
-			vertexPositionData.push(wall[0], 0, wall[1]);
-
-			pushRepeat(normalData, [1,0,0], 6);
-		}		
 
 		mesh = cglib.SimpleMesh.extend()
 		mesh.init(gl)
-			.addAttrib('position', 3, vertexPositionData)
-			.addAttrib('normal', 3, normalData);
+			.addAttrib('position', 2, vertexPositionData);
+		mesh.drawMode = gl.GL_LINE_STRIP;
+
 		return mesh; 		
 	}
 
@@ -379,7 +306,7 @@ var ex05 = function() {
 		// Convertion note: Converting these static meshes from begin/end blocks
 		// is rather straightforward. Just dump all the sequence into
 		// arrays and create a sequenced mesh (vertices.push instead of glVertex)
-
+		/*
 		var vertexPositionData = [];
 		for(var i=0;i<GameLogic.getBoardSize()[0];++i) {
 			for(var j=0;j<GameLogic.getBoardSize()[1];++j) {											
@@ -402,14 +329,16 @@ var ex05 = function() {
 		//mesh.drawMode = gl.LINES;
 
 		return mesh; 
+		*/
 	}
 
 	function initMeshes() {
-		meshes.floor = initFloorMesh();
-		meshes.walls = initWallsMesh();	
+		//meshes.floor = initFloorMesh();
+		meshes.curve = initCurveMesh();
 
 		meshes.airplane = cglib.meshLoader.fromText(gl, container.getShaderText(resourcesURLs.airplaneMesh));
 		cglib.meshGenerator.genNormals(meshes.airplane);
+		meshes.airplane.drawMode = gl.GL_LINE_STRIP;
 	}
 
 	function initShaders() {
@@ -433,6 +362,7 @@ var ex05 = function() {
 	    uniforms.normalMatrix = gl.getUniformLocation(shaderProgram, "uNormalMatrix");
 	    uniforms.projectionMatrix = gl.getUniformLocation(shaderProgram, "uProjectionMatrix");
 	    uniforms.modelViewMatrix = gl.getUniformLocation(shaderProgram, "uModelViewMatrix");   
+	    uniforms.lightingEnabled = gl.getUniformLocation(shaderProgram, "uLightingEnabled");
 
 		uniforms.lights = [];
 	    for(var i=0;i<4;++i) {
@@ -469,6 +399,8 @@ var ex05 = function() {
 	    pMatrix = mat4.create(); 
 
 	    GameLogic.init();               
+
+	    GameLogic.addAirplane();
 	}
 	
 	function initGL(context) {
@@ -509,48 +441,68 @@ var ex05 = function() {
 	
 	function setupProjectionAndViewport() {
 		
-		// Setup viewport
-		var height = gl.viewportHeight;
-		var width = gl.viewportWidth;	
-	    gl.viewport(0, 0, width, height);
-	    
-	    // Create projection transformation   
-		mat4.perspective(pMatrix, 60.0*Math.PI/180, width/height, 0.1, 1000);		
-
-		//console.log(pMatrix);	
 	}
-	
-	/**
-	* Create camera transformation such that the model is rotated around the
-	* world's X-axis and Y-axis. 
-	*/
-	function setupCamera() {
-		//console.log(GameLogic.angle);
-		mat4.identity(wvMatrix);		
-		mat4.rotate(wvMatrix, wvMatrix, GameLogic.getAngle()-Math.PI/2, [0,1,0,0]); 
-		mat4.translate(wvMatrix, wvMatrix, vec4.fromValues(-GameLogic.getLocation()[0],-1, -GameLogic.getLocation()[1], 0));
-	}	
 	
 	function renderScene() {	
 	    animate();
-	    setupProjectionAndViewport();
+
+		// Clear FrameBuffer
+	    gl.clear(gl.COLOR_BUFFER_BIT);
+
+		var height = gl.viewportHeight;
+		var width = gl.viewportWidth;	
+		var x = GameLogic.getAirplanes()[0].position[0];
+		var y = GameLogic.getAirplanes()[0].position[1];
+		var angle = GameLogic.getAirplanes()[0].angle;
+
+		//
+		// Viewport4 - Side view
+		//		
+	    gl.viewport(0, 0, width/2, height/2);	    
+		mat4.ortho(pMatrix, -1, 31, 0, 15, -100, 100);
+		mat4.identity(wvMatrix);
 	    renderWorld();	    
+
+		//
+		// Viewport2 - Isometric
+		//		
+	    gl.viewport(width/2+1, 0, width/2, height/2);	    	    
+	    mat4.perspective(pMatrix, 60.0*Math.PI/180, width/height, 0.1, 1000);		
+	    mat4.lookAt(wvMatrix, [x+0.7, y+0.7, +0.7], [x,y,0], [0,1,0]);
+	    renderWorld();
+
+		//
+		// Viewport3 - Over the head camera
+		//		
+		gl.viewport(width/2+1, height/2+1, width/2, height/2);	    	    			
+		mat4.identity(wvMatrix);
+		mat4.translate(wvMatrix, wvMatrix, [0, -0.35, -1.4, 0]);
+		mat4.rotate(wvMatrix, wvMatrix, Math.PI/2, [0,1,0,0]);
+		mat4.rotate(wvMatrix, wvMatrix, -angle, [0,0,1,0]);
+		mat4.translate(wvMatrix, wvMatrix, [-x, -y, 0, 0]);
+		renderWorld();
+
+		//
+		// Viewport 4 - Wide view 
+		//
+	    gl.viewport(0, height/2, width/2, height/2);	    	    
+	    mat4.perspective(pMatrix, 90.0*Math.PI/180, width/height, 0.1, 1000);		
+	    mat4.identity(wvMatrix);
+		mat4.rotate(wvMatrix, wvMatrix, -60.0*Math.PI/180, [0,1,0,0]);
+		mat4.translate(wvMatrix, wvMatrix, [-29, -8, -1, 0]);
+		renderWorld();
 	}
 	
 	function keyDown(keyCode) {
 		switch(keyCode)
 		{
 			case 37:
-			GameLogic.actions.turnLeft = true;
 			break;
 			case 39:
-			GameLogic.actions.turnRight = true;
 			break;
 			case 38:
-			GameLogic.actions.moveForward = true;
 			break;
 			case 40:
-			GameLogic.actions.moveBackward = true;
 			break;
 			default:
 			return false;
@@ -562,16 +514,16 @@ var ex05 = function() {
 		switch(keyCode)
 		{
 			case 37:
-			GameLogic.actions.turnLeft = false;
+			GameLogic.speedDown();
 			break;
 			case 39:
-			GameLogic.actions.turnRight = false;
+			GameLogic.speedUp();
 			break;
 			case 38:
-			GameLogic.actions.moveForward = false;
+			GameLogic.addAirplane();			
 			break;
 			case 40:
-			GameLogic.actions.moveBackward = false;
+			GameLogic.removeAirplane();
 			break;
 			default:
 			return false;
