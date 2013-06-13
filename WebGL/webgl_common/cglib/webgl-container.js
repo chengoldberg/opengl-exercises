@@ -70,10 +70,15 @@ cglib.container = {
 		this.jsURL = jsURL;
 		this.resourcesURL = resourcesURL;
 		var that = this;
+		if(this.app) {
+			this.app.release();			
+			eval(this.app.name + ' = undefined');
+		}
 
 		jQuery.getScript(jsURL)
 			.done(function(script, status, jqXHR) {
 				that.app = eval(appName);
+				that.app.name = appName;
 				console.log('loaded!');
 				that.app.init(that);
 				that.start();
@@ -176,12 +181,30 @@ cglib.container = {
 		return this.shaders[name];
 	},
 
+	releaseBinds : function () {
+		if(this.keyDownFunc) {
+			jQuery(document).unbind('keydown');
+			this.keyDownFunc = undefined;
+		}
+		if(this.keyUpFunc) {
+			jQuery(document).unbind('keyup');
+			this.keyUpFunc = undefined;
+		}
+		if(this.keyPressedFunc) {
+			jQuery(document).unbind('keypress');
+			this.keyPressedFunc = undefined;
+		}		
+	},
+
 	reset : function() {
 		this.isReset = true;
 
 		// Attempt to stop further renderings
 		cancelRequestAnimFrame(this.wrappedDisplayLoop);
 		
+		// Stop previous key/mouse from being called again
+		this.releaseBinds();
+
 		// Reset context
 		WebGLDebugUtils.resetToInitialState(this.contextGL);
 

@@ -260,9 +260,14 @@ var ex01 = function() {
 		return eval(val);
 	}	
 
+	function release() {
+		
+	}
+
 	return {
 		init : init,
 		start : start,
 		getDebug : getDebug,
+		release : release,
 	};	
 } ();

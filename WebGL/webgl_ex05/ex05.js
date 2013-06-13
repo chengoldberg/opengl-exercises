@@ -111,34 +111,10 @@ var GameLogic = function() {
 	}
 } ();
 
-var ex05 = function() {
-	
-	var container = undefined;
+var LightingShaderHelper = function() {
+
 	var gl = undefined;
-	var shaders = {};
-	var uniforms = {};
-	var attribs = {};
-	var wvMatrix = undefined;
-	var mwMatrix = undefined;
-	var pMatrix = undefined;
-	var shaderProgram = undefined;
-    var meshes = {};
-	var frame = 0;
-	var resourcesURLs = {
-		airplaneMesh : '../res/mesh/bomber1.off',
-		lightingShader : '../res/shader/lighting.vert'
-	}
-
-	function updateMVP() {
-		var mvMatrix = mat4.create();
-		mat4.multiply(mvMatrix, wvMatrix, mwMatrix);
-	    gl.uniformMatrix4fv(uniforms.projectionMatrix, false, pMatrix);
-	    gl.uniformMatrix4fv(uniforms.modelViewMatrix, false, mvMatrix );
-
-	    var normalMatrix = mat3.create();
-	    mat3.normalFromMat4(normalMatrix, mvMatrix);
-	    gl.uniformMatrix3fv(uniforms.normalMatrix, false, normalMatrix);
-	}	
+	var uniforms = undefined;
 
 	function setLighting(status) {
 		gl.uniform1i(uniforms.lightingEnabled, status);
@@ -148,7 +124,7 @@ var ex05 = function() {
 		gl.uniform1i(uniforms.lights[lightIndex].isEnabled, status);
 	}
 
-	function setLightPosition(lightIndex, pos) {
+	function setLightPosition(lightIndex, wvMatrix, mwMatrix, pos) {
 		var lightPosition = vec4.create();
 		
 		var mvMatrix = mat4.create();
@@ -199,6 +175,84 @@ var ex05 = function() {
 			gl.uniform4fv(uniforms.emission, emission);		
 	}
 
+	function initShaders(_gl, shaderProgram, _uniforms) {
+		gl = _gl;
+		uniforms = _uniforms;
+	    uniforms.normalMatrix = gl.getUniformLocation(shaderProgram, "uNormalMatrix");	    
+	    uniforms.lightingEnabled = gl.getUniformLocation(shaderProgram, "uLightingEnabled");
+
+		uniforms.lights = [];
+	    for(var i=0;i<4;++i) {
+	    	uniforms.lights[i] = {
+	    		position: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].position"),
+	    		ambient: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].ambient"),
+	    		diffuse: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].diffuse"),
+	    		specular: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].specular"),    			
+	    		spotDirection: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].spotDirection"),    			
+	    		spotExponent: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].spotExponent"),    			
+	    		spotCutoff: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].spotCutoff"),    			
+	    		constantAttenuation: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].constantAttenuation"),    			
+	    		linearAttenuation: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].linearAttenuation"),    			
+	    		quadraticAttenuation: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].quadraticAttenuation"),    			    		
+	    		isEnabled: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].isEnabled"),    			
+	    	};
+	    	// Set default values
+	    	gl.uniform1f(uniforms.lights[i].constantAttenuation, 1);
+	    	gl.uniform3fv(uniforms.lights[i].spotDirection, [0,0,-1]);
+	    	gl.uniform1f(uniforms.lights[i].spotCutoff, 180);
+	    }
+
+	    uniforms.ambient = gl.getUniformLocation(shaderProgram, "uMaterial.ambient");
+	    uniforms.diffuse = gl.getUniformLocation(shaderProgram, "uMaterial.diffuse");
+	    uniforms.specular = gl.getUniformLocation(shaderProgram, "uMaterial.specular");
+	    uniforms.specularPower = gl.getUniformLocation(shaderProgram, "uMaterial.shininess");
+	    uniforms.emission = gl.getUniformLocation(shaderProgram, "uMaterial.emission");	    
+		
+	}
+
+	return {
+		initShaders : initShaders,
+		setLighting : setLighting,
+		setMaterial : setMaterial,
+		setLightPosition : setLightPosition,
+		setLightStatus : setLightStatus,
+		setLightIntensity : setLightIntensity,
+		setLightSpot : setLightSpot,
+		setLightAttenuation : setLightAttenuation,
+	}
+
+} ();
+
+var ex05 = function() {
+	
+	var container = undefined;
+	var gl = undefined;
+	var shaders = {};
+	var uniforms = {};
+	var attribs = {};
+	var wvMatrix = undefined;
+	var mwMatrix = undefined;
+	var pMatrix = undefined;
+	var shaderProgram = undefined;
+    var meshes = {};
+	var frame = 0;
+	var resourcesURLs = {
+		airplaneMesh : '../res/mesh/bomber1.off',
+		lightingShader : '../res/shader/lighting.vert'
+	}
+
+	function updateMVP() {
+		var mvMatrix = mat4.create();
+		mat4.multiply(mvMatrix, wvMatrix, mwMatrix);
+	    gl.uniformMatrix4fv(uniforms.projectionMatrix, false, pMatrix);
+	    gl.uniformMatrix4fv(uniforms.modelViewMatrix, false, mvMatrix );
+
+	    var normalMatrix = mat3.create();
+	    mat3.normalFromMat4(normalMatrix, mvMatrix);
+	    gl.uniformMatrix3fv(uniforms.normalMatrix, false, normalMatrix);
+	}	
+
+
 	function setColor(r,g,b) {
 		//gl.uniform3fv(uniforms.color, [r,g,b]);
 	}
@@ -210,7 +264,7 @@ var ex05 = function() {
 	}
 
 	function drawFloor() {		
-		setMaterial(
+		LightingShaderHelper.setMaterial(
 			[0.65,0.65,0.65,1],
 			[0.65,0.65,0.65,1],
 			[1,1,1,1],
@@ -228,8 +282,8 @@ var ex05 = function() {
 		
 		// Sky light
 		mat4.identity(mwMatrix);
-		setLightStatus(0, true);		
-		setLightPosition(0, [0.5,1,1,0]);		
+		LightingShaderHelper.setLightStatus(0, true);		
+		LightingShaderHelper.setLightPosition(0, wvMatrix, mwMatrix, [0.5,1,1,0]);		
 
 		//setLightPosition(1, [4,4,4,1]);		
 
@@ -237,9 +291,9 @@ var ex05 = function() {
 		mat4.identity(mwMatrix);
 		updateMVP();
 		//drawFloor();
-		setLighting(false);
+		LightingShaderHelper.setLighting(false);
 		drawCurve();
-		setLighting(true);
+		LightingShaderHelper.setLighting(true);
 		drawAirplanes();
 	};
 
@@ -257,7 +311,7 @@ var ex05 = function() {
 		mat4.scale(mwMatrix, mwMatrix, [0.1,0.1,0.1,1]);
 		updateMVP();
 
-		setMaterial(
+		LightingShaderHelper.setMaterial(
 			airplane.pigment,
 			airplane.pigment,
 			[1,1,1,1],
@@ -274,17 +328,6 @@ var ex05 = function() {
 			drawAirplane(airplanes[airplane]);
 		}
 	}	
-
-	function drawSphere(isSmall) {	
-		// Render
-		if(isSmall) {
-			meshes.sphereSmall.setAttribLocs(attribs);
-			meshes.sphereSmall.render();						
-		} else {
-			meshes.sphereLarge.setAttribLocs(attribs);
-			meshes.sphereLarge.render();									
-		}
-	}
 
 	function initCurveMesh() {		
 		var vertexPositionData = [];
@@ -359,37 +402,10 @@ var ex05 = function() {
 	
 	    // Store unfiform IDs
 	    uniforms = {};
-	    uniforms.normalMatrix = gl.getUniformLocation(shaderProgram, "uNormalMatrix");
 	    uniforms.projectionMatrix = gl.getUniformLocation(shaderProgram, "uProjectionMatrix");
 	    uniforms.modelViewMatrix = gl.getUniformLocation(shaderProgram, "uModelViewMatrix");   
-	    uniforms.lightingEnabled = gl.getUniformLocation(shaderProgram, "uLightingEnabled");
 
-		uniforms.lights = [];
-	    for(var i=0;i<4;++i) {
-	    	uniforms.lights[i] = {
-	    		position: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].position"),
-	    		ambient: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].ambient"),
-	    		diffuse: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].diffuse"),
-	    		specular: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].specular"),    			
-	    		spotDirection: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].spotDirection"),    			
-	    		spotExponent: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].spotExponent"),    			
-	    		spotCutoff: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].spotCutoff"),    			
-	    		constantAttenuation: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].constantAttenuation"),    			
-	    		linearAttenuation: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].linearAttenuation"),    			
-	    		quadraticAttenuation: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].quadraticAttenuation"),    			    		
-	    		isEnabled: gl.getUniformLocation(shaderProgram, "uLightSource[" + i + "].isEnabled"),    			
-	    	};
-	    	// Set default values
-	    	gl.uniform1f(uniforms.lights[i].constantAttenuation, 1);
-	    	gl.uniform3fv(uniforms.lights[i].spotDirection, [0,0,-1]);
-	    	gl.uniform1f(uniforms.lights[i].spotCutoff, 180);
-	    }
-
-	    uniforms.ambient = gl.getUniformLocation(shaderProgram, "uMaterial.ambient");
-	    uniforms.diffuse = gl.getUniformLocation(shaderProgram, "uMaterial.diffuse");
-	    uniforms.specular = gl.getUniformLocation(shaderProgram, "uMaterial.specular");
-	    uniforms.specularPower = gl.getUniformLocation(shaderProgram, "uMaterial.shininess");
-	    uniforms.emission = gl.getUniformLocation(shaderProgram, "uMaterial.emission");	    
+	    LightingShaderHelper.initShaders(gl, shaderProgram, uniforms);
 	}
 	
 	function initWorld() {
@@ -409,24 +425,24 @@ var ex05 = function() {
 	    initMeshes();
 
 		// Setup sky light	
-		setLightIntensity(0, 
+		LightingShaderHelper.setLightIntensity(0, 
 			[0.2,0.2,0.2,1],
 			[0.8, 0.8, 0.8, 1],
 			[1,1,1,1]);
 
 		// Setup flashlight
-		setLightIntensity(1, 
+		LightingShaderHelper.setLightIntensity(1, 
 			[0,0,0,1],
 			[1, 0, 0, 1],
 			[1,1,1,1]);
-		setLightSpot(1, [0,0,-1], 100, 10);
+		LightingShaderHelper.setLightSpot(1, [0,0,-1], 100, 10);
 
 		// Setup sphere light
-		setLightIntensity(2, 
+		LightingShaderHelper.setLightIntensity(2, 
 			[0, 0, 0, 1],
 			[1, 1, 0, 1],
 			[1, 1, 0, 1]);		
-		setLightAttenuation(2,1,0,0.5);
+		LightingShaderHelper.setLightAttenuation(2,1,0,0.5);
 
 		// Set background color to gray    
 	    gl.clearColor(0, 0, 0, 1); 
@@ -557,8 +573,14 @@ var ex05 = function() {
 		return eval(val);
 	}
 
+	function release() {
+		GameLogic = undefined;
+		LightingShaderHelper = undefined;
+	}
+
 	return {
 		init : init,
+		release : release,
 		start : start,
 		getDebug: getDebug,
 	};
