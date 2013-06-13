@@ -335,9 +335,14 @@ var ex03 = function() {
 		rotY += y;
 	}
 	
+	function release() {
+
+	}
+	
 	return {
 		init : init,
-		start : start,
+		release : release,
+		start : start,		
 		mouseFunc : mouseFunc,
 		motionFunc : motionFunc
 	};

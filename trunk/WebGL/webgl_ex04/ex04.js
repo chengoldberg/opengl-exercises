@@ -642,8 +642,13 @@ var ex04 = function() {
 		return eval(val);
 	}
 
+	function release() {
+		GameLogic = undefined;
+	}
+
 	return {
 		init : init,
+		release : release,
 		start : start,
 		getDebug: getDebug,
 	};
