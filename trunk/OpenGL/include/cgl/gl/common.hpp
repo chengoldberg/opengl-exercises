@@ -4,6 +4,7 @@
 #include <GL/freeglut.h>
 #include <vector>
 #include <iostream>
+#include <fstream>
 
 #define BUFFER_OFFSET(bytes)  ((GLubyte*) NULL + (bytes))
 
@@ -17,6 +18,17 @@ namespace cgl
 		GLuint _type;
 
 	public:
+		static Shader fromFile(GLuint type, std::string filename)
+		{
+			std::ifstream file(filename);
+			file.seekg(0, std::ios::end);
+			GLuint size = (GLuint) file.tellg();
+			file.seekg(0, std::ios::beg); 
+			std::string text(size + 1, 0);
+			file.read((char*)text.data(), size);
+			return Shader(type, text);
+		}
+
 		Shader(GLuint type, std::string source)
 		{
 			this->_source = source;
