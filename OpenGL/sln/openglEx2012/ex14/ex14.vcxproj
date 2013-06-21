@@ -13,6 +13,11 @@
   <ItemGroup>
     <ClCompile Include="..\..\..\src\ex14\ex14.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="ex14.frag" />
+    <None Include="ex14.geom" />
+    <None Include="ex14.vert" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1531FADD-9AF8-4B03-BBB2-BFA69A38DAF3}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>

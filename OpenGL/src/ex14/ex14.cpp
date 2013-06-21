@@ -64,18 +64,6 @@ void rotate(double x, double y)
 
 // ============================== Helper Functions =========================
 
-GLuint createProgramFast(const char* srcVert, const char* srcFrag) 
-{	
-	std::vector<cgl::Shader> shaders;
-	shaders.push_back(cgl::Shader(GL_VERTEX_SHADER, srcVert));
-	shaders.push_back(cgl::Shader(GL_FRAGMENT_SHADER, srcFrag));
-
-	cgl::Program program;
-	program.build(shaders);
-
-	return program.getId();
-}
-
 void loadRGBCube()
 {
 	float vertices[][3] = {
@@ -130,29 +118,16 @@ void drawRGBCube()
 }
 
 void initShaders() {
-	
-	const char* srcVert = 
-		"varying vec4  vColor;"
-		"attribute vec3 aPosition;"
-		"attribute vec3 aColor;"
-		"uniform mat4 uModelViewMatrix;"
-		"uniform mat4 uProjectionMatrix;"
-		""
-		"void main()"
-		"{"
-		"	vColor = vec4(aColor,1);"
-		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition,1);"
-		"}";
 
-	const char* srcFrag = 
-		"varying vec4  vColor;"
-		""
-		"void main()"
-		"{"
-		"	gl_FragColor = vColor;"
-		"}";
+	std::vector<cgl::Shader> shaders;
+	shaders.push_back(cgl::Shader::fromFile(GL_VERTEX_SHADER,"ex14.vert"));
+	shaders.push_back(cgl::Shader::fromFile(GL_GEOMETRY_SHADER, "ex14.geom"));
+	shaders.push_back(cgl::Shader::fromFile(GL_FRAGMENT_SHADER, "ex14.frag"));
 
-	g_program = createProgramFast(srcVert, srcFrag);	
+	cgl::Program program;
+	program.build(shaders);
+	g_program = program.getId();
+
 	g_attribPosition = glGetAttribLocation(g_program, "aPosition");
 	g_attribColor = glGetAttribLocation(g_program, "aColor");
 	g_uniformModelViewMatrix = glGetUniformLocation(g_program, "uModelViewMatrix");
@@ -291,34 +266,46 @@ void keyboardFunc(unsigned char key, int x, int y)
 
 int main(int argc, char **argv) 
 {
-	glutInitContextVersion(4,3);
-	glutInitContextProfile(GLUT_CORE_PROFILE);
-	glutInitContextFlags(GLUT_DEBUG);
+	try
+	{
+		glutInitContextVersion(4,3);
+		glutInitContextProfile(GLUT_CORE_PROFILE);
+		glutInitContextFlags(GLUT_DEBUG);
 
-	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-	glutInitWindowPosition(0, 0);
-	glutInitWindowSize(512, 512);
+		glutInit(&argc, argv);
+		glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+		glutInitWindowPosition(0, 0);
+		glutInitWindowSize(512, 512);
 
-	glutCreateWindow("ex14 - Drawing RGB Cube with geometry shaders and Core features");
+		glutCreateWindow("ex14 - Drawing RGB Cube with geometry shaders and Core features");
 
-	glutReshapeFunc(reshape);
-	glutDisplayFunc(display);
-	glutIdleFunc(display);
-	glutMotionFunc(motionFunc);
-	glutMouseFunc(mouseFunc);
-	glutKeyboardFunc(keyboardFunc);
-	//glutInit
-	//glutFullScreen();
+		glutReshapeFunc(reshape);
+		glutDisplayFunc(display);
+		glutIdleFunc(display);
+		glutMotionFunc(motionFunc);
+		glutMouseFunc(mouseFunc);
+		glutKeyboardFunc(keyboardFunc);
+		//glutInit
+		//glutFullScreen();
 
-	// Glew limitation 
-	// Ref: http://openglbook.com/glgenvertexarrays-access-violationsegfault-with-glew/
-	glewExperimental = GL_TRUE; 
-	glewInit();
+		// Glew limitation 
+		// Ref: http://openglbook.com/glgenvertexarrays-access-violationsegfault-with-glew/
+		glewExperimental = GL_TRUE; 
+		glewInit();
 
-	init();
+		init();
 
-	glutMainLoop();
+		glutMainLoop();
+	}
+	catch(std::exception ex)
+	{
+		std::cerr << ex.what() << std::endl;
+		exit(-1);
+	}
+	catch(...)
+	{
+		exit(-1);
+	}
 
 	return 0;  
 }
