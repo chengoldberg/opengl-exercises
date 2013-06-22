@@ -6,6 +6,11 @@ in vec3 aColor;
 uniform mat4 uModelViewMatrix;
 uniform mat4 uProjectionMatrix;
 
+out gl_PerVertex
+{
+	vec4 gl_Position;
+};
+
 void main()
 {
 	vColor = vec4(aColor,1);
