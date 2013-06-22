@@ -46,10 +46,21 @@ struct Uniforms
 Point g_prevMouse;
 double g_rotY;
 double g_rotX;
-GLuint g_program, g_attribPosition, g_attribColor, g_uniformModelViewMatrix, g_uniformProjectionMatrix;
+GLuint g_attribPosition, g_attribColor, g_uniformModelViewMatrix, g_uniformProjectionMatrix;
 GLuint g_vbObject, g_ebObject, g_cbObject, g_vao;
+GLuint g_programPipelines[3], g_vertFragProgram;
 glm::mat4 g_modelView(1), g_projection;
 cgl::SimpleMesh RGBCube;
+
+namespace primitives
+{
+	enum
+	{
+		point,
+		line,
+		triangle,
+	};
+};
 
 /*
  * Rotate view along x and y axes 
@@ -87,12 +98,13 @@ void loadRGBCube()
 		{1,1,1}};//7
 	
 	GLuint faces[] = {
-		0,4,5,5,1,0,
-		0,1,3,3,2,0,
-		0,2,6,6,4,0,
-		7,6,2,2,3,7,
-		7,5,4,4,6,7,
-		7,3,1,1,5,7};
+		0,4,5,1,
+		0,1,3,2,
+		0,2,6,4,
+		7,6,2,3,
+		7,5,4,6,
+		7,3,1,5};
+
 	std::vector<GLuint> facesVec;
 	facesVec.assign(faces, faces+sizeof(faces)/sizeof(GLuint));
 	RGBCube.init(facesVec);
@@ -117,26 +129,84 @@ void drawRGBCube()
 	RGBCube.render();
 }
 
-void initShaders() {
+void initShaders() 
+{
+	// Build a separable program that contains the fixed parts (vertex). this
+	// should have also contained fragment shader, but for some strange reason
+	// it throws a GL error... 
+	cgl::Program fixedProgram;
+	{
+		std::vector<cgl::Shader> shaders;
+		shaders.push_back(cgl::Shader::fromFile(GL_VERTEX_SHADER,"ex14.vert"));		
+		fixedProgram.build(shaders, true);	
+	}
 
-	std::vector<cgl::Shader> shaders;
-	shaders.push_back(cgl::Shader::fromFile(GL_VERTEX_SHADER,"ex14.vert"));
-	shaders.push_back(cgl::Shader::fromFile(GL_GEOMETRY_SHADER, "ex14.geom"));
-	shaders.push_back(cgl::Shader::fromFile(GL_FRAGMENT_SHADER, "ex14.frag"));
+	//
+	// Now build the 3 separable programs for each primitive type
+	//
+	std::string geomText = cgl::Shader::readFile("ex14.geom");
+	std::string fragText = cgl::Shader::readFile("ex14.frag");	
 
-	cgl::Program program;
-	program.build(shaders);
-	g_program = program.getId();
+	cgl::Program geomTriangleProgram;
+	{
+		std::vector<cgl::Shader> shaders;
+		shaders.push_back(cgl::Shader(GL_FRAGMENT_SHADER, fragText));
+		shaders.push_back(cgl::Shader(GL_GEOMETRY_SHADER, geomText).addHeader("#define PRIMITIVE TRIANGLE"));	
+		geomTriangleProgram.build(shaders, true);	
+	}
 
-	g_attribPosition = glGetAttribLocation(g_program, "aPosition");
-	g_attribColor = glGetAttribLocation(g_program, "aColor");
-	g_uniformModelViewMatrix = glGetUniformLocation(g_program, "uModelViewMatrix");
-	g_uniformProjectionMatrix = glGetUniformLocation(g_program, "uProjectionMatrix");
+	cgl::Program geomLineProgram;
+	{
+		std::vector<cgl::Shader> shaders;
+		shaders.push_back(cgl::Shader(GL_FRAGMENT_SHADER, fragText));
+		shaders.push_back(cgl::Shader(GL_GEOMETRY_SHADER, geomText).addHeader("#define PRIMITIVE LINE"));	
+		geomLineProgram.build(shaders, true);	
+	}
+
+	cgl::Program geomPointProgram;
+	{
+		std::vector<cgl::Shader> shaders;
+		shaders.push_back(cgl::Shader(GL_FRAGMENT_SHADER, fragText));
+		shaders.push_back(cgl::Shader(GL_GEOMETRY_SHADER, geomText).addHeader("#define PRIMITIVE POINT"));	
+		geomPointProgram.build(shaders, true);	
+	}
+
+	//
+	// Assemble the separable programs into 3 program pipelines!
+	//
+	glGenProgramPipelines(3, g_programPipelines);
+
+	glUseProgramStages(g_programPipelines[primitives::triangle], GL_VERTEX_SHADER_BIT, fixedProgram.getId());
+	glUseProgramStages(g_programPipelines[primitives::triangle], GL_FRAGMENT_SHADER_BIT | GL_GEOMETRY_SHADER_BIT, geomTriangleProgram.getId());
+
+	glUseProgramStages(g_programPipelines[primitives::line], GL_VERTEX_SHADER_BIT, fixedProgram.getId());
+	glUseProgramStages(g_programPipelines[primitives::line], GL_FRAGMENT_SHADER_BIT | GL_GEOMETRY_SHADER_BIT, geomLineProgram.getId());
+
+	glUseProgramStages(g_programPipelines[primitives::point], GL_VERTEX_SHADER_BIT, fixedProgram.getId());
+	glUseProgramStages(g_programPipelines[primitives::point], GL_FRAGMENT_SHADER_BIT | GL_GEOMETRY_SHADER_BIT, geomPointProgram.getId());
+
+	//
+	// Note: we use the fixed program to set the uniforms we need there.
+	//
+	g_vertFragProgram = fixedProgram.getId();
+	g_attribPosition = glGetAttribLocation(fixedProgram.getId(), "aPosition");
+	g_attribColor = glGetAttribLocation(fixedProgram.getId(), "aColor");
+	g_uniformModelViewMatrix = glGetUniformLocation(fixedProgram.getId(), "uModelViewMatrix");
+	g_uniformProjectionMatrix = glGetUniformLocation(fixedProgram.getId(), "uProjectionMatrix");
 }
 
+void initDebug()
+{
+	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+	glDebugMessageCallback(&debugOutput, NULL);
+}
 
 void init() 
 {
+	// Init GL Debug
+	initDebug();
+
 	// Init shaders
 	initShaders();
 
@@ -174,7 +244,7 @@ void display(void)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);		
 
 	// Apply shaders
-	glUseProgram(g_program);
+	//glUseProgram(g_program);
 
 	// Create camera transformation
 	setupCamera();		
@@ -184,28 +254,36 @@ void display(void)
 
 	// Init states		
 	//glPolygonMode(GL_BACK, GL_POINT); // Not allowed anymore
-	glLineWidth(1); // Line width can't be larger than 1 (!)
+	//glLineWidth(1); // Line width can't be larger than 1 (!)
 	glPointSize(5);
 
 	// Draw Line RGB cube
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);		
+	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINES_ADJACENCY);		
+	RGBCube.setDrawMode(GL_LINES_ADJACENCY);
 	g_modelView = glm::translate(g_modelView, glm::vec3(-3,0,0));
-	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));
+	glProgramUniformMatrix4fv(g_vertFragProgram, g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));
+	glBindProgramPipeline(g_programPipelines[primitives::line]);
 	drawRGBCube();
+	glBindProgramPipeline(0);
 
 	// Draw Fill RGB cube
+	
 	glPointSize(1);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);		
 	g_modelView = glm::translate(g_modelView, glm::vec3(3,0,0));
-	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));
+	glProgramUniformMatrix4fv(g_vertFragProgram, g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));
+	glBindProgramPipeline(g_programPipelines[primitives::triangle]);
 	drawRGBCube();
+	glBindProgramPipeline(0);
+	
 	glPointSize(5);
-
 	// Draw Point RGB cube
 	glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
 	g_modelView = glm::translate(g_modelView, glm::vec3(3,0,0));
-	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));
+	glProgramUniformMatrix4fv(g_vertFragProgram, g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));
+	glBindProgramPipeline(g_programPipelines[primitives::point]);
 	drawRGBCube();
+	glBindProgramPipeline(0);
 
 	// Load camera transformation
 	g_modelView = saveMat;
@@ -225,9 +303,7 @@ void reshape(int width, int height) {
 	g_projection = glm::ortho(-w/2.0f, w/2.0f, -h/2.0f, h/2.0f, -1.0f, 1000.0f);
 
 	// Create projection transformation	
-	glUseProgram(g_program); // Remember to use program when setting variables
-	glUniformMatrix4fv(g_uniformProjectionMatrix, 1, false, glm::value_ptr(g_projection));
-	glUseProgram(0);
+	glProgramUniformMatrix4fv(g_vertFragProgram, g_uniformProjectionMatrix, 1, false, glm::value_ptr(g_projection));	
 }
 
 void motionFunc(int x, int y) 
