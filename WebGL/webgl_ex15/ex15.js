@@ -303,7 +303,7 @@ var ex15 = function() {
 		container = _container;
 	    container.setDisplay(renderScene);	    
 	    container.setKeyDown(keyDown);
-	    container.loadResources(['ex15.vert', 'ex15.frag']);
+	    container.loadResourcesAsync(['ex15.vert', 'ex15.frag']);
 	}
 
 	function start() {

@@ -16,6 +16,7 @@ cglib.container = {
 	contextGL : undefined,
 	wrappedDisplayLoop : undefined,
 	isReset : false,
+	isUsingAsyncLoad : false,
 
 	init : function(canvas) {		
 		this.canvas = canvas;
@@ -81,7 +82,10 @@ cglib.container = {
 				that.app.name = appName;
 				console.log('loaded!');
 				that.app.init(that);
-				that.start();
+				if(!that.isUsingAsyncLoad) {
+					that.start();
+				}
+
 			})
 			.fail(function(jqxhr, settings, exception) {
 				alert('Failed! to load ' + jsURL + exception);
@@ -177,6 +181,59 @@ cglib.container = {
 		}
 	},
 
+	loadResourcesAsync : function(shaders, images) {
+		this.shaders = {}
+		var that = this;
+		this.isUsingAsyncLoad = true;
+
+		var acceptedResponses = 0;
+		var expectedResponses = shaders.length + (images?images.length:0);
+		var failedResponses = 0;
+		
+		if(expectedResponses == 0)
+			return;
+
+		var acceptResponse = function(isSuccess) {
+			console.log(isSuccess);
+			failedResponses += !isSuccess;
+			// Hope this is atomic...
+			acceptedResponses++;	
+	
+			if(acceptedResponses == expectedResponses) {
+				if(failedResponses) {
+					throw "Can't start because some resources failed to load";
+				} else {
+					// Start!
+					that.start();
+				}
+			}
+		};
+
+		//
+		// Load shaders
+		//
+		for(var shaderIndex in shaders) {
+			// We use closure here so that the inner functions reference a 
+			// different 'shader' variable
+			(function(shader){
+				jQuery.ajax({
+					async: true,
+					url: that.resourcesURL + shader,
+					dataType: 'text',
+					cache: false,
+					success: function(data) {					
+						that.shaders[shader] = data;					
+						console.log(data);
+						acceptResponse(true);					
+					},
+					error: function() {
+						acceptResponse(false);
+					},
+			});
+			}(shaders[shaderIndex]));
+		}
+	},
+
 	getShaderText : function(name) {
 		return this.shaders[name];
 	},
@@ -198,6 +255,7 @@ cglib.container = {
 
 	reset : function() {
 		this.isReset = true;
+		this.isUsingAsyncLoad = false;
 
 		// Attempt to stop further renderings
 		cancelRequestAnimFrame(this.wrappedDisplayLoop);
