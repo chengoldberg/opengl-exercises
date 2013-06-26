@@ -3,7 +3,7 @@
 	<script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>	
 	<script type="text/javascript" src="../webgl_common/lib3rd/webgl-utils.js"></script>
 	<script type="text/javascript" src="../webgl_common/lib3rd/gl-matrix.js"></script>
-	<script type="text/javascript" src="ex15.js"></script>			
+	<!--<script type="text/javascript" src="ex15.js"></script>-->
 	<script type="text/javascript" src="../webgl_common/cglib/webgl-common.js"></script>
 	<script type="text/javascript" src="../webgl_common/cglib/webgl-simple-mesh.js"></script>
 	<script type="text/javascript" src="../webgl_common/cglib/webgl-container.js"></script>			
@@ -18,31 +18,10 @@
 	</canvas>	
 
 	<script type="text/javascript">
-
-		var cnt = 3;
-		var img1 = new Image();
-		var img2 = new Image();
-		var img1TO2 = new Image();
-
-		var imgFailed = function() {
-			alert('image failed!');
-		}
-		var imgLoaded = function() {
-			cnt--;
-			if(!cnt)
-				whenready();
-		}
-
-		$(img1).load(imgLoaded).error(imgFailed).attr('src', '../res/texture/ex15/eql1.png')
-		$(img2).load(imgLoaded).error(imgFailed).attr('src', '../res/texture/ex15/eql2.png')
-		$(img1TO2).load(imgLoaded).error(imgFailed).attr('src', '../res/texture/ex15/eql12map_maxmin.png')
-
-		function whenready() {
-	  		var canvas = jQuery("#mycanvas")[0];
-	  		var container = cglib.container.extend();
-	  		container.init(canvas);
-	  		container.loadApp('ex15', 'ex15.js', './');		
-	  	}
+  		var canvas = jQuery("#mycanvas")[0];
+  		var container = cglib.container.extend();
+  		container.init(canvas);
+  		container.loadApp('ex15', 'ex15.js', './');		
 	</script>
 
 </body>
