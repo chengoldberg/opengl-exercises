@@ -11,6 +11,8 @@ var ex15 = function() {
 	var shaderProgram = undefined;
 	var rotX = 0;
 	var rotY = 0;
+	var targetRotX = undefined;
+	var targetRotY = undefined;
 	var prevMouse = undefined;
     var meshes = {};
     var textures = {};
@@ -25,69 +27,6 @@ var ex15 = function() {
 		},
 	}
 		
-	var properties = {
-		angle:45,
-		maxLevel:4,		
-		factor:0.6,
-		splits:2,		
-	};
-	var propertiesSteps = {
-		angle:1,
-		maxLevel:1,		
-		factor:0.01,
-		splits:1,		
-	};	
-	var propertiesRanges = {
-		angle:[0,180],
-		maxLevel:[0,8],		
-		factor:[0.1,1],
-		splits:[0,8],		
-	};	
-	var propertiesNames	= ['angle','maxLevel','factor','splits'];	
-	var currentProperty = 0;
-
-	function changeProperty(delta) {
-		currentProperty += delta;
-		currentProperty = Math.max(currentProperty,0);
-		currentProperty = Math.min(currentProperty,3);
-		invalidatePropertyMenu();
-	}
-
-	function changePropertyValue(delta) {
-		var name = propertiesNames[currentProperty];
-		properties[name] += delta*propertiesSteps[name];
-		properties[name] = Math.max(properties[name], propertiesRanges[name][0]);
-		properties[name] = Math.min(properties[name], propertiesRanges[name][1]);
-		invalidatePropertyMenu();
-	}
-
-	function invalidatePropertyMenu() {
-
-		canvas2DTexture.drawToTexture(gl, function(ctx) {
-			var fontSize = 24;
-			ctx.font = fontSize + "px monospace";
-			ctx.textBaseline = "top";
-
-			lines = [				
-				"angle " + properties.angle,
-				"maxLevel " + properties.maxLevel,				
-				"factor " + properties.factor,
-				"splits " + properties.splits];
-
-			for(var i=0; i<4; ++i) {
-				if(i == currentProperty) 
-					ctx.fillStyle = "#FF0000";		
-				else
-					ctx.fillStyle = "#000000";		
-				ctx.fillText(lines[i], 0, fontSize*i);		
-			}
-		}, textures.textTexture);
-	}
-
-	function setTextureEnabled(val) {
-		gl.uniform1i(uniforms.textureEnabled, val);
-	}
-
 	function updateMVP() {
 		var mvMatrix = mat4.create();
 		mat4.multiply(mvMatrix, wvMatrix, mwMatrix);
@@ -95,10 +34,6 @@ var ex15 = function() {
 	    gl.uniformMatrix4fv(uniforms.modelViewMatrix, false, mvMatrix );
 	}	
 	
-	function setColor(r,g,b) {
-		gl.uniform3fv(uniforms.color, [r,g,b]);
-	}
-
 	function drawPoints(level) {
 
 	    gl.activeTexture(gl.TEXTURE0);
@@ -131,31 +66,10 @@ var ex15 = function() {
 		mat4.translate(mwMatrix, mwMatrix, [-127.0, -127.0, +127.0]);
 		updateMVP();	
 		drawPoints();		
-	
-		setTextureEnabled(true);
-		//drawHUD();
-		setTextureEnabled(false);
 
 		mwMatrix = saveMat;
 	};
 	
-	function drawHUD() {
-		var projectionMatrix = mat4.create();
-		var modelViewMatrix = mat4.create();	
-
-	    gl.uniformMatrix4fv(uniforms.projectionMatrix, false, projectionMatrix);
-	    gl.uniformMatrix4fv(uniforms.modelViewMatrix, false, modelViewMatrix);
-	    gl.activeTexture(gl.TEXTURE0);
-	    gl.bindTexture(gl.TEXTURE_2D, textures.textTexture);
-	    gl.uniform1i(uniforms.texture0, 0);
-
-	    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-	    gl.enable(gl.BLEND);
-		meshes.screenAlignedQuad.drawMode = gl.TRIANGLE_STRIP;
-		meshes.screenAlignedQuad.setAttribLocs(attribs);		
-		meshes.screenAlignedQuad.render();						
-	}
-
 	function initMeshes() {
 
 		var posData = [];
@@ -222,7 +136,7 @@ var ex15 = function() {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 		gl.bindTexture(gl.TEXTURE_2D, null);	    
-		console.log('1')
+
 		textures.img2 = gl.createTexture();	    
 		gl.bindTexture(gl.TEXTURE_2D, textures.img2);
 		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
@@ -230,7 +144,7 @@ var ex15 = function() {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 		gl.bindTexture(gl.TEXTURE_2D, null);	    
-		console.log('2')
+
 		textures.img1to2 = gl.createTexture();	    
 		gl.bindTexture(gl.TEXTURE_2D, textures.img1to2);
 		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
@@ -238,12 +152,30 @@ var ex15 = function() {
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 		gl.bindTexture(gl.TEXTURE_2D, null);	    
-		console.log('3')
-		// Set background color to gray    
+
+		// Set background color to teal
 	    gl.clearColor(0, 0.63, 0.9, 1); 
 	}
 	
-	function animate() {	
+	function animate() {
+		// Move camera if provided target
+		var step = 2;
+		if(targetRotY != undefined)	{
+			if(Math.abs(targetRotY-rotY)<=step) {
+				rotY = targetRotY;
+				targetRotY = undefined;
+			}
+			else	
+				rotY += step*(targetRotY-rotY)/Math.abs(targetRotY-rotY)
+		}
+		if(targetRotX != undefined)	 {
+			if(Math.abs(targetRotX-rotX)<=step) {
+				rotX = targetRotX;
+				targetRotX = undefined;			
+			}
+			else			
+				rotX += step*(targetRotX-rotX)/Math.abs(targetRotX-rotX)		
+		}
 		frame++;
 	}
 	
@@ -257,10 +189,7 @@ var ex15 = function() {
 	    // Create projection transformation   
 		w = width;
 		h = height*(height/width);
-		//mat4.ortho(pMatrix, -w*0.25, w*0.75, -h*0.25, h*0.75, -1000, 1000);		
 		mat4.ortho(pMatrix, -w*0.5, w*0.5, -h*0.5, h*0.5, -1000, 1000);				
-
-		//console.log(pMatrix);
 	}
 	
 	/**
@@ -269,15 +198,9 @@ var ex15 = function() {
 	*/
 	function setupCamera() {
 	
-		// Rotate along temp in world coordinates	
-		var yAxisInModelSpace = vec3.fromValues(mwMatrix[1], mwMatrix[5], mwMatrix[9]);
-		mat4.rotate(mwMatrix, mwMatrix, -rotX/180*3.14, yAxisInModelSpace); 
-		rotX = 0;
-		
-		// Rotate along the (1 0 0) in world coordinates
-		var xAxisInModelSpace = vec3.fromValues(mwMatrix[0], mwMatrix[4], mwMatrix[8]);
-		mat4.rotate(mwMatrix, mwMatrix, -rotY/180*3.14, xAxisInModelSpace);
-		rotY = 0;				
+		mat4.identity(mwMatrix);
+		mat4.rotateX(mwMatrix, mwMatrix, -rotY/180*Math.PI); 
+		mat4.rotateY(mwMatrix, mwMatrix, -rotX/180*Math.PI); 
 	}	
 	
 	function renderScene() {	
@@ -288,18 +211,22 @@ var ex15 = function() {
 	
 	function keyDown(keyCode) {
 		switch(keyCode)
-		{
-			case 37:
-			changePropertyValue(-1);
+		{			
+			case '1'.charCodeAt():
+			targetRotX = 0;
+			targetRotY = 0;			
 			break;
-			case 39:
-			changePropertyValue(+1);
+			case '2'.charCodeAt():
+			targetRotX = -89.8;
+			targetRotY = 0;			
 			break;
-			case 38:
-			changeProperty(-1);
+			case '3'.charCodeAt():
+			targetRotX = 0;
+			targetRotY = -90;			
 			break;
-			case 40:
-			changeProperty(+1);
+			case '4'.charCodeAt():
+			targetRotX = -180;
+			targetRotY = 0;						
 			break;
 			default:
 			return false;
