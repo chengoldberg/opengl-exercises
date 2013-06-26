@@ -16,6 +16,14 @@ var ex15 = function() {
     var textures = {};
     var canvas2DTexture = undefined;
     var frame = 0;
+	var resourcesURLs = {
+		images : 
+		{
+			eql1 : '../res/texture/ex15/eql1.png',
+			eql2 : '../res/texture/ex15/eql2.png',
+			eql12map : '../res/texture/ex15/eql12map_maxmin.png',
+		},
+	}
 		
 	var properties = {
 		angle:45,
@@ -210,7 +218,7 @@ var ex15 = function() {
 	    textures.img1 = gl.createTexture();
 		gl.bindTexture(gl.TEXTURE_2D, textures.img1);
 		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img1);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, container.images.eql1);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 		gl.bindTexture(gl.TEXTURE_2D, null);	    
@@ -218,7 +226,7 @@ var ex15 = function() {
 		textures.img2 = gl.createTexture();	    
 		gl.bindTexture(gl.TEXTURE_2D, textures.img2);
 		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img2);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, container.images.eql2);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 		gl.bindTexture(gl.TEXTURE_2D, null);	    
@@ -226,7 +234,7 @@ var ex15 = function() {
 		textures.img1to2 = gl.createTexture();	    
 		gl.bindTexture(gl.TEXTURE_2D, textures.img1to2);
 		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img1TO2);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, container.images.eql12map);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
 		gl.bindTexture(gl.TEXTURE_2D, null);	    
@@ -303,7 +311,7 @@ var ex15 = function() {
 		container = _container;
 	    container.setDisplay(renderScene);	    
 	    container.setKeyDown(keyDown);
-	    container.loadResourcesAsync(['ex15.vert', 'ex15.frag']);
+	    container.loadResourcesAsync(['ex15.vert', 'ex15.frag'], resourcesURLs.images);
 	}
 
 	function start() {

@@ -1,6 +1,14 @@
 // define namespace
 var cglib = cglib || {};
 
+Object.size = function(obj) {
+    var size = 0, key;
+    for (key in obj) {
+        if (obj.hasOwnProperty(key)) size++;
+    }
+    return size;
+};
+
 /**
  * Simple mesh
  */
@@ -183,11 +191,13 @@ cglib.container = {
 
 	loadResourcesAsync : function(shaders, images) {
 		this.shaders = {}
+		this.images = {}
+
 		var that = this;
 		this.isUsingAsyncLoad = true;
 
 		var acceptedResponses = 0;
-		var expectedResponses = shaders.length + (images?images.length:0);
+		var expectedResponses = shaders.length + (images?Object.size(images):0);
 		var failedResponses = 0;
 		
 		if(expectedResponses == 0)
@@ -195,6 +205,9 @@ cglib.container = {
 
 		var acceptResponse = function(isSuccess) {
 			console.log(isSuccess);
+			if(!isSuccess) {
+				debugger;
+			}
 			failedResponses += !isSuccess;
 			// Hope this is atomic...
 			acceptedResponses++;	
@@ -231,6 +244,18 @@ cglib.container = {
 					},
 			});
 			}(shaders[shaderIndex]));
+		}
+
+		//
+		// Load images
+		//
+		for(var imageName in images) {
+			var img = new Image();
+			$(img)
+				.load(function(){acceptResponse(true);})
+				.error(function(){acceptResponse(false);})
+				.attr('src', that.resourcesURL + images[imageName]);
+			this.images[imageName] = img;
 		}
 	},
 
