@@ -53,7 +53,7 @@ var ex15 = function() {
 	function renderWorld() {
 		
 		// Clear FrameBuffer
-	    gl.clear(gl.COLOR_BUFFER_BIT);
+	    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 	
 	    // Apply shaders
 		gl.useProgram(shaderProgram);

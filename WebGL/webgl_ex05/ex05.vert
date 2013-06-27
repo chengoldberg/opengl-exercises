@@ -18,11 +18,11 @@ void main(void)
 	vec4 viewPosition = uModelViewMatrix * vec4(aPosition,1);
 	gl_Position = uProjectionMatrix * viewPosition;
 
+	vBackColor = vec3(1,1,1);
+	
 	if(uLightingEnabled) {
 		vFrontColor = calcLighting(aNormal, viewPosition);
-		vBackColor = calcLighting(-aNormal, viewPosition);
 	} else {
 		vFrontColor = vec3(1,1,1);
-		vBackColor = vec3(1,1,1);
 	}
 }
