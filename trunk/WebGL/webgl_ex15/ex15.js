@@ -281,7 +281,12 @@ var ex15 = function() {
 	}
 	
 	function release() {
-
+		for(var mesh in meshes) {
+			meshes[mesh].release(gl);
+			for(texture in textures) {
+				gl.deleteTexture(textures[texture]);
+			}
+		}
 	}
 	
 	return {

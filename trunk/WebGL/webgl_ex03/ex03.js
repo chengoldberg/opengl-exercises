@@ -336,7 +336,9 @@ var ex03 = function() {
 	}
 	
 	function release() {
-
+		for(var mesh in meshes) {
+			meshes[mesh].release(gl);
+		}
 	}
 	
 	return {
