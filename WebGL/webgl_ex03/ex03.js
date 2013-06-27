@@ -127,10 +127,9 @@ var ex03 = function() {
 		// Create camera transformation
 		setupCamera();
 		var saveMat = mat4.clone(mwMatrix);
-				
-		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(0, -1, 0, 0));
+						
 		mat4.rotate(mwMatrix, mwMatrix, -90.0, vec4.fromValues(1, 0, 0, 0));
-		updateMVP();	
+		mat4.translate(mwMatrix, mwMatrix, vec4.fromValues(0, 0, -1, 0));
 		drawTree(0);		
 	
 		setTextureEnabled(true);
@@ -253,12 +252,12 @@ var ex03 = function() {
 	
 		// Rotate along temp in world coordinates	
 		var yAxisInModelSpace = vec3.fromValues(mwMatrix[1], mwMatrix[5], mwMatrix[9]);
-		mat4.rotate(mwMatrix, mwMatrix, -rotX/180*3.14, yAxisInModelSpace); 
+		mat4.rotate(mwMatrix, mwMatrix, -rotX/180*Math.PI, yAxisInModelSpace); 
 		rotX = 0;
 		
 		// Rotate along the (1 0 0) in world coordinates
 		var xAxisInModelSpace = vec3.fromValues(mwMatrix[0], mwMatrix[4], mwMatrix[8]);
-		mat4.rotate(mwMatrix, mwMatrix, -rotY/180*3.14, xAxisInModelSpace);
+		mat4.rotate(mwMatrix, mwMatrix, -rotY/180*Math.PI, xAxisInModelSpace);
 		rotY = 0;				
 	}	
 	
@@ -293,6 +292,8 @@ var ex03 = function() {
 		container = _container;
 	    container.setDisplay(renderScene);	    
 	    container.setKeyDown(keyDown);
+	    container.setMouseMove(mouseMove);
+	    container.setMouseDown(mouseDown);
 	    container.loadResources(['ex03.vert', 'ex03.frag']);
 	}
 
@@ -309,11 +310,14 @@ var ex03 = function() {
 	    renderScene();		
 	}
 	
-	function mouseFunc(x, y) {
+	function mouseDown(x, y) {
 		prevMouse = {"x":x, "y":y};
+		return true;
 	}
 	
-	function motionFunc(x, y) {
+	function mouseMove(x, y, isMouseDown) {
+		if(!isMouseDown)
+			return false;
 
 		// Calc difference from previous mouse location
 		if(!prevMouse)
@@ -328,6 +332,8 @@ var ex03 = function() {
 	
 		// Remember mouse location 
 		prevMouse = {"x":x, "y":y};	
+
+		return true;
 	}
 	
 	function rotate(x, y) {
@@ -345,8 +351,6 @@ var ex03 = function() {
 		init : init,
 		release : release,
 		start : start,		
-		mouseFunc : mouseFunc,
-		motionFunc : motionFunc
 	};
 	
 } ();
