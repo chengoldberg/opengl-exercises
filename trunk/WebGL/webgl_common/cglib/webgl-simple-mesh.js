@@ -153,7 +153,10 @@ cglib.SimpleMesh = {
 }
 
 cglib.meshLoader = {
-	fromText : function(gl, text) {
+	fromText : function(gl, text, windingCCW) {
+		
+		windingCCW = typeof windingCCW !== 'undefined' ? windingCCW : false;
+
     	var buffer = text.split(/\s+/);
 		var cnt = 0;
 
@@ -168,18 +171,32 @@ cglib.meshLoader = {
 
 		for(var i=0; i<verticesAmount; ++i) {
 			vertices.push(
-				parseFloat(buffer[cnt++]),
-				parseFloat(buffer[cnt++]),
-				parseFloat(buffer[cnt++]));
+				parseFloat(buffer[cnt+0]),
+				parseFloat(buffer[cnt+1]),
+				parseFloat(buffer[cnt+2]));
+			cnt += 3;
 		}
 
-		for(var i=0; i<facesAmount; ++i) {
-			cnt++;
-			faces.push(
-				parseFloat(buffer[cnt++]),
-				parseFloat(buffer[cnt++]),
-				parseFloat(buffer[cnt++]));
-		}		
+		// Internally we work with CCW winding
+		if(windingCCW) {
+			for(var i=0; i<facesAmount; ++i) {
+				cnt++;
+				faces.push(
+					parseFloat(buffer[cnt+0]),
+					parseFloat(buffer[cnt+1]),
+					parseFloat(buffer[cnt+2]));
+				cnt += 3;
+			}					
+		} else {
+			for(var i=0; i<facesAmount; ++i) {
+				cnt++;
+				faces.push(
+					parseFloat(buffer[cnt+2]),
+					parseFloat(buffer[cnt+1]),
+					parseFloat(buffer[cnt+0]));
+				cnt += 3;
+			}		
+		}
 	
 		var mesh = cglib.SimpleMesh.extend()
 		mesh.init(gl, faces)

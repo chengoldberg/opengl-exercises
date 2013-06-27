@@ -80,8 +80,7 @@ cglib.container = {
 		this.resourcesURL = resourcesURL;
 		var that = this;
 		if(this.app) {
-			this.app.release();			
-			eval(this.app.name + ' = undefined');
+			throw "can't load new App when old one exists!"
 		}
 
 		jQuery.getScript(jsURL)
@@ -236,7 +235,6 @@ cglib.container = {
 					cache: false,
 					success: function(data) {					
 						that.shaders[shader] = data;					
-						console.log(data);
 						acceptResponse(true);					
 					},
 					error: function() {
@@ -287,6 +285,12 @@ cglib.container = {
 		
 		// Stop previous key/mouse from being called again
 		this.releaseBinds();
+
+		if(this.app) {
+			this.app.release();			
+			eval(this.app.name + ' = undefined');
+			this.app = undefined;
+		}
 
 		// Reset context
 		WebGLDebugUtils.resetToInitialState(this.contextGL);

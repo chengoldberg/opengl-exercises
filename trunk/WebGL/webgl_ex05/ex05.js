@@ -379,7 +379,7 @@ var ex05 = function() {
 		//meshes.floor = initFloorMesh();
 		meshes.curve = initCurveMesh();
 
-		meshes.airplane = cglib.meshLoader.fromText(gl, container.getShaderText(resourcesURLs.airplaneMesh));
+		meshes.airplane = cglib.meshLoader.fromText(gl, container.getShaderText(resourcesURLs.airplaneMesh), false);
 		cglib.meshGenerator.genNormals(meshes.airplane);
 		meshes.airplane.drawMode = gl.GL_LINE_STRIP;
 	}
@@ -452,6 +452,7 @@ var ex05 = function() {
 	    gl.clearColor(0, 0, 0, 1); 
 
 	    gl.enable(gl.DEPTH_TEST);
+	    gl.enable(gl.CULL_FACE);
 	}
 	
 	function animate() {	
@@ -467,7 +468,7 @@ var ex05 = function() {
 	    animate();
 
 		// Clear FrameBuffer
-	    gl.clear(gl.COLOR_BUFFER_BIT);
+	    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
 		var height = gl.viewportHeight;
 		var width = gl.viewportWidth;	
