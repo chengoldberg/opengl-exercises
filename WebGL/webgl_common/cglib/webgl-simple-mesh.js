@@ -130,6 +130,15 @@ cglib.SimpleMesh = {
 		}		
 	},
 
+	release : function(gl) {
+		for(var key in this.attribs) {
+			var attrib = this.attribs[key];
+			gl.deleteBuffer(attrib.hostBufferId);			
+		}		
+		if(this.faces)
+			gl.deleteBuffer(this.facesBufferId)
+	},
+
 	// Foundation helpers
 	extend: function(props) {
         var prop, obj;

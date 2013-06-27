@@ -227,9 +227,11 @@ var ex02 = function() {
 	}
 	
 	function release() {
-
+		for(var mesh in meshes) {
+			meshes[mesh].release(gl);
+		}
 	}
-
+	
 	return {
 		init : init,
 		start : start,

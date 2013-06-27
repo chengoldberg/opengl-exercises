@@ -350,7 +350,7 @@ var ex04 = function() {
 		updateMVP();
 		drawFloor();
 		drawWalls();
-		drawObjects();						
+		drawObjects();								
 	};
 
 	/**
@@ -460,7 +460,11 @@ var ex04 = function() {
 	    // Link program
 	    shaderProgram = cglib.WebGLCommon.linkProgram(gl, [vertexShader, fragmentShader]);
 	    gl.useProgram(shaderProgram);
-	   
+
+	    // No need for shaders after link
+	    gl.deleteShader(vertexShader);
+	    gl.deleteShader(fragmentShader);
+   
 	    // Store attrib IDs
 	    attribs = {};
 	    attribs.position = gl.getAttribLocation(shaderProgram, "aPosition");    
@@ -644,6 +648,10 @@ var ex04 = function() {
 
 	function release() {
 		GameLogic = undefined;
+		for(var mesh in meshes) {
+			meshes[mesh].release(gl);
+		}
+		gl.deleteProgram(shaderProgram);
 	}
 
 	return {
