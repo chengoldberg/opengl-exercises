@@ -236,8 +236,10 @@ var ex15 = function() {
 
 	function init(_container) {
 		container = _container;
-	    container.setDisplay(renderScene);	    
+	    container.setDisplay(renderScene);	  
 	    container.setKeyDown(keyDown);
+	    container.setMouseMove(mouseMove);
+	    container.setMouseDown(mouseDown);
 	    container.loadResourcesAsync(['ex15.vert', 'ex15.frag'], resourcesURLs.images);
 	}
 
@@ -254,11 +256,14 @@ var ex15 = function() {
 	    renderScene();		
 	}
 	
-	function mouseFunc(x, y) {
+	function mouseDown(x, y) {
 		prevMouse = {"x":x, "y":y};
+		return true;
 	}
 	
-	function motionFunc(x, y) {
+	function mouseMove(x, y, isMouseDown) {
+		if(!isMouseDown)
+			return false;
 
 		// Calc difference from previous mouse location
 		if(!prevMouse)
@@ -273,8 +278,10 @@ var ex15 = function() {
 	
 		// Remember mouse location 
 		prevMouse = {"x":x, "y":y};	
+
+		return true;
 	}
-	
+
 	function rotate(x, y) {
 		rotX += x;
 		rotY += y;
@@ -293,8 +300,6 @@ var ex15 = function() {
 		init : init,
 		release : release,
 		start : start,		
-		mouseFunc : mouseFunc,
-		motionFunc : motionFunc
 	};
 	
 } ();

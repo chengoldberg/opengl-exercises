@@ -184,6 +184,8 @@ var ex02 = function() {
 	function init(_container) {
 		container = _container;
 	    container.setDisplay(renderScene);	    
+	    container.setMouseMove(mouseMove);
+	    container.setMouseDown(mouseDown);
 	    container.loadResources(['ex02.vert', 'ex02.frag']);
 	}
 
@@ -200,12 +202,15 @@ var ex02 = function() {
 	    renderScene();		
 	}
 	
-	function mouseFunc(x, y) {
+	function mouseDown(x, y) {
 		prevMouse = {"x":x, "y":y};
+		return true;
 	}
 	
-	function motionFunc(x, y) {
-	
+	function mouseMove(x, y, isMouseDown) {
+		if(!isMouseDown)
+			return false;
+
 		// Calc difference from previous mouse location
 		if(!prevMouse)
 			prevMouse = {"x":x, "y":y};
@@ -219,6 +224,8 @@ var ex02 = function() {
 	
 		// Remember mouse location 
 		prevMouse = {"x":x, "y":y};	
+
+		return true;
 	}
 	
 	function rotate(x, y) {
@@ -231,13 +238,11 @@ var ex02 = function() {
 			meshes[mesh].release(gl);
 		}
 	}
-	
+
 	return {
 		init : init,
 		start : start,
 		release : release,
-		mouseFunc : mouseFunc,
-		motionFunc : motionFunc
 	};
 	
 } ();

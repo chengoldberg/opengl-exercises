@@ -34,40 +34,8 @@ cglib.container = {
 		var that = this;
 		var isMouseDown = false;
 
-		mousePosRelative = function (canvas, evt){
-		  var rect = canvas.getBoundingClientRect();
-		  return {
-		    x: evt.clientX - rect.left,
-		    y: evt.clientY - rect.top
-		  };
-		}
-
-		canvas.addEventListener('mousemove', function(evt) {		  
-		  var mousePos = mousePosRelative(canvas, evt);
-		  if(isMouseDown) {
-		  	if(that.app) {
-		  		that.app.motionFunc(mousePos.x, mousePos.y);	
-		  	}
-		  }
-		  
-		});
-
-		canvas.addEventListener('mousedown', function(evt) {
-			evt.preventDefault();
-		  isMouseDown = true;
-		  var mousePos = mousePosRelative(canvas, evt);
-		  if(that.app) {
-		  	that.app.mouseFunc(mousePos.x, mousePos.y);
-		  }		  		  
-		});
-
-		canvas.addEventListener('mouseup', function(evt) {
-		  isMouseDown = false;
-		  //alert('mouseup');
-		});
-
 		canvas.addEventListener('resize', function(evt) {
-			alert('resize');
+			console.log('Canvas resize event');
 			that.reshape();
 		});
 
@@ -167,6 +135,41 @@ cglib.container = {
 		var that = this;
 		jQuery(document).keyup(function(event) {
 			if(that.keyUpFunc(event.which))
+				event.preventDefault();	
+		});
+	},
+
+	setMouseMove : function(callback) {
+		this.mouseMoveFunc = callback;
+		var that = this;
+		jQuery(document).mousemove(function(event) {
+			if(that.mouseMoveFunc(event.clientX, event.clientY, that.isMouseDown))
+				event.preventDefault();	
+		});
+
+		// If needed, set basic handlers for mouseDown
+		if(!this.mouseDownFunc)
+			this.setMouseDown(function(){});
+		if(!this.mouseUpFunc)
+			this.setMouseUp(function(){});		
+	},
+
+	setMouseDown : function(callback) {
+		this.mouseDownFunc = callback;
+		var that = this;
+		jQuery(document).mousedown(function(event) {
+			that.isMouseDown = true;
+			if(that.mouseDownFunc(event.clientX, event.clientY))
+				event.preventDefault();	
+		});
+	},
+
+	setMouseUp : function(callback) {
+		this.mouseUpFunc = callback;
+		var that = this;
+		jQuery(document).mouseup(function(event) {
+			that.isMouseDown = false;
+			if(that.mouseUpFunc(event.clientX, event.clientY))
 				event.preventDefault();	
 		});
 	},

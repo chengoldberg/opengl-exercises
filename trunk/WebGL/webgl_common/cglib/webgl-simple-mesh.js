@@ -306,7 +306,7 @@ cglib.meshGenerator = {
 				    
 		    normalData.push(x);
 		    normalData.push(y);
-		    normalData.push(z);
+		    normalData.push(0);
 		    //textureCoordData.push(u);
 		    //textureCoordData.push(v);
 		    vertexPositionData.push(x);

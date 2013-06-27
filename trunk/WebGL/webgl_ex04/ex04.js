@@ -528,7 +528,7 @@ var ex04 = function() {
 		setLightIntensity(1, 
 			[0,0,0,1],
 			[1, 0, 0, 1],
-			[1,1,1,1]);
+			[1,0,0,1]);
 		setLightSpot(1, [0,0,-1], 100, 10);
 
 		// Setup sphere light
