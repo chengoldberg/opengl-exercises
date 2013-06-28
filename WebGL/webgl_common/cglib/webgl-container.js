@@ -25,23 +25,33 @@ cglib.container = {
 	wrappedDisplayLoop : undefined,
 	isReset : false,
 	isUsingAsyncLoad : false,
+	isContentReady : false,
 
 	init : function(canvas) {		
-		this.canvas = canvas;
-		
-		this.wrappedDisplayLoop = this.wrapFunc(this.displayLoop);
-
+		this.canvas = canvas;		
 		var that = this;
 		var isMouseDown = false;
+		this.wrappedDisplayLoop = this.wrapFunc(this.displayLoop);
+
+		this.setCanvasVisibility(false);
+
+		if(window.WebGLRenderingContext === undefined)
+			return false;		
+
+		try {
+			this.getContext();
+		} catch(e) {
+			return false;
+		}
 
 		canvas.addEventListener('resize', function(evt) {
 			console.log('Canvas resize event');
 			that.reshape();
 		});
-
-		this.getContext();
 		this.reshape();
-	},
+
+		return true;
+	},	
 
 	loadApp : function(appName, jsURL, resourcesURL) {
 		this.jsURL = jsURL;
@@ -67,17 +77,39 @@ cglib.container = {
 			});
 	},
 
+	setLoadingScreen : function(parentDiv, isWebGL) {
+		text = jQuery('<p>').html('Loading...');
+		if(isWebGL) {
+			text = 'Loading... <i class="icon-spinner icon-spin"></i>';
+		} else {
+			text = 'Sadly, your browser doesn\'t support WebGL <i class="icon-frown icon-4x"></i>';
+		}
+
+		div = jQuery('<div>').attr('width','512px').attr('height','100%').css('vertical-align','middle').css('line-height','512px').append(text);		
+		parentDiv.append(div);
+		this.loadingDiv = div;
+	},
+
+	setCanvasVisibility : function(isVisible) {
+		if(isVisible) {
+			if(this.loadingDiv)
+				this.loadingDiv.hide();
+			jQuery(this.canvas).show();
+		}
+		else
+			jQuery(this.canvas).hide();
+	},
+
 	getContext : function() {
 		if(this.contextGL == undefined) {
 		    try {	    	
 		    	console.log('Asking for context');
 		        this.contextGL = this.canvas.getContext("experimental-webgl");
 		    } catch (e) {
-		    	alert("Can't get context" + e);
+		    	throw("CREATE_CONTEXT_FAILED");
 		    }
 		    if (!this.contextGL) {
-		        alert("Could not initialise WebGL, sorry :-(");
-		        return;
+		     	throw("CREATE_CONTEXT_FAILED");   
 		    }
 		}
 	    return this.contextGL;
@@ -98,6 +130,7 @@ cglib.container = {
 		}
 		console.log('start');
 		this.displayLoop();
+		requestAnimFrame(this.wrappedDisplayLoop);
 	},
 
 	displayLoop : function() {				
@@ -106,6 +139,12 @@ cglib.container = {
 			return;
 		}
 		this.displayFunc();
+
+		//TODO: You may want to create a loop without this
+		if(!this.isContentReady) {
+			this.setCanvasVisibility(true);
+			this.isContentReady = true;
+		}
 		requestAnimFrame(this.wrappedDisplayLoop);
 	},
 
@@ -282,6 +321,7 @@ cglib.container = {
 	reset : function() {
 		this.isReset = true;
 		this.isUsingAsyncLoad = false;
+		this.isContentReady = false;
 
 		// Attempt to stop further renderings
 		cancelRequestAnimFrame(this.wrappedDisplayLoop);
