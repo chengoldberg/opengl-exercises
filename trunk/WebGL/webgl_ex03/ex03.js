@@ -160,7 +160,7 @@ var ex03 = function() {
 	 * Draw a unit size RGB cube
 	 */
 	function drawCylinder() {	
-			
+		//TODO: update VBO positions based on 'factor' for cone-like effect
 		meshes.cylinder.drawMode = gl.LINE_LOOP;
 		
 		// Render
