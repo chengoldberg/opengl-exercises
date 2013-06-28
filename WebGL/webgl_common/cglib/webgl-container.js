@@ -196,7 +196,7 @@ cglib.container = {
 	setMouseDown : function(callback) {
 		this.mouseDownFunc = callback;
 		var that = this;
-		jQuery(document).mousedown(function(event) {
+		jQuery(this.canvas).mousedown(function(event) {
 			that.isMouseDown = true;
 			if(that.mouseDownFunc(event.clientX, event.clientY))
 				event.preventDefault();	
