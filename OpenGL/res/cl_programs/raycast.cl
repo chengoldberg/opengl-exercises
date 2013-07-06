@@ -20,7 +20,19 @@ typedef struct {
 
 typedef struct {
    float4 pos;   
+   float4 back;
+   float4 right;
+   float4 up;
 } Camera;
+
+typedef struct {
+    float left;
+    float right;
+    float bottom;
+    float top;
+    float near;
+    float far;
+} Frustum;
 
 typedef struct {
    float4 backgroundCol;
@@ -73,9 +85,6 @@ float3 Sphere_normalAt(Sphere* self, float4 intersection, Ray ray)
 
 float Sphere_nearestIntersection(Sphere* self, Ray ray) 
 {
-   if (ray.p.x<100)
-      return 9999.0;
-      
    float4 v = self->center - ray.p;
    float qB = dot(v,ray.v);
    float delta = (qB*qB) - pow(length(ray.v),2) * (pow(length(v),2)-pow(self->radius,2));
@@ -145,14 +154,37 @@ float4 Scene_calcColor(Scene* self, Hit hit, Ray ray)
    return (float4)(res,1.0);
 }
 
-Ray constructRayThroughPixel(int2 p) 
+Ray constructRayThroughPixelOrtho(int2 p, Camera* camera) 
 {
    return createRay((float4)(convert_float2(p), 0.0,1.0), (float4)(0,0,-1,0));
 }
 
+Ray constructRayThroughPixelPersp(int2 p, Camera* camera) 
+{
+    Frustum frustum;
+    frustum.left = -1;
+    frustum.right = +1;
+    frustum.bottom = -1;
+    frustum.top = +1;
+    frustum.near = 1;
+    frustum.far = 100;
+
+	float4 centerNear = camera->pos + camera->back*frustum.near;
+    float4 p00 = centerNear + frustum.left*camera->right + frustum.top*camera->up;
+
+	float2 pr = convert_float2(p)/(float2)(512.0, 512.0);
+    float4 pf = p00 + pr.x*camera->right*(frustum.right - frustum.left) + pr.y*camera->up*(frustum.bottom - frustum.top);
+    float4 ptr = normalize(pf - camera->pos);  
+    return createRay(pf, ptr);
+}
+
 float4 castRay(Scene* scene, int2 p) 
 {
-   Ray ray = constructRayThroughPixel(p);
+   Ray ray = constructRayThroughPixelPersp(p, &scene->camera);
+   //Ray ray = constructRayThroughPixelOrtho(p, &scene->camera);
+//   return (float4)(ray.v.xyz,1);
+//    return ray.p;
+
    Hit hit = Scene_findIntersection(scene, ray);
         
    return Scene_calcColor(scene, hit, ray);

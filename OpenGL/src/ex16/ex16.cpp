@@ -26,6 +26,10 @@
 #include <GL/glut.h>
 #include <math.h>
 
+#include "glm/glm.hpp"
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #include "GameLogic.h"
 #include "cgl/cl/common.h"
 #include "CL/cl_platform.h"
@@ -52,6 +56,8 @@ int				g_height, g_width;
 char*			EProcessor[] = {"CPU", "OpenCL"};
 bool			g_isOpenCL, g_isAnimate;
 GLuint			g_texture;	// Texture Object IDs
+
+glm::mat4 g_modelView(1), g_projection;
 
 float colorDarkGray[] = {0.2f,0.2f,0.2f,0};
 
@@ -87,6 +93,9 @@ typedef struct {
 
 typedef struct {
    cl_float4 pos;   
+   cl_float4 back;   
+   cl_float4 right;   
+   cl_float4 up;   
 } Camera;
 
 typedef struct {
@@ -168,12 +177,17 @@ void initOpenCL()
 
 	Scene scene;
 	memset(&scene, 0, sizeof(scene));
-	scene.surface.center.s[0] = 200; scene.surface.center.s[1] = 200; scene.surface.center.s[2] = -200; scene.surface.center.s[3] = 1.0;
-	scene.surface.radius = 99;
+	scene.surface.center.s[0] = 0; scene.surface.center.s[1] = 0; scene.surface.center.s[2] = -10; scene.surface.center.s[3] = 1.0;
+	scene.surface.radius = 1;
 	scene.surface.mat = material;
 	scene.light.pos.s[0] = 10;scene.light.pos.s[1] = 10;scene.light.pos.s[2] = 10;
 	scene.light.color.s[0] = 1;scene.light.color.s[1] = 1; scene.light.color.s[2] = 1;
-
+	
+	scene.camera.pos.s[3] = 1.0;
+	scene.camera.back.s[0] = 0; scene.camera.back.s[1] = 0; scene.camera.back.s[2] = -1;
+	scene.camera.right.s[0] = 1; scene.camera.right.s[1] = 0; scene.camera.right.s[2] = 0;
+	scene.camera.up.s[0] = 0; scene.camera.up.s[1] = 1; scene.camera.up.s[2] = 0;
+	
 	g_clMaterialsMem = clCreateBuffer(g_clContext, CL_MEM_COPY_HOST_PTR, sizeof(scene), &scene, &errNum); 
 	if(errNum != CL_SUCCESS)
 	{
@@ -201,19 +215,19 @@ void setupCamera()
 	// Convert player's angle to world angle
 	double angle = g_game.getAngle()*180.0/M_PI - 90;
 
-	//glRotated(-25,1,0,0);
-	glRotated(angle, 0,1,0);
-	glTranslated(-g_game.getPlayerLoc()[0], -2, -g_game.getPlayerLoc()[1]);
+	g_modelView = glm::mat4();
+	g_modelView = glm::rotate(g_modelView, (float)angle, glm::vec3(0,1,0));
+	g_modelView = glm::translate(g_modelView, glm::vec3(-g_game.getPlayerLoc()[0], 0, -g_game.getPlayerLoc()[1]));
 }	
 
 void drawScreenAlignedQuad()
 {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glMatrixMode(GL_MODELVIEW);
+	glMatrixMode(GL_MODELVIEW);	
 	glPushMatrix();
-	glLoadIdentity();
-	
+	glLoadIdentity();		
+
 	glMatrixMode(GL_PROJECTION);
 	glPushMatrix();
 	glLoadIdentity();		
@@ -254,14 +268,12 @@ void renderWorld()
 
 	glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 50);
 	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, l0_diff);
+	
+	g_modelView = glm::translate(g_modelView, glm::vec3(0,0,-10));
+	glLoadMatrixf(glm::value_ptr(g_modelView));
 
-	glPushMatrix();
-	{		
-		glTranslated(0,0,-10);	
-		GLUquadric* q = gluNewQuadric();
-		gluSphere(q,1,10,10);
-	}
-	glPopMatrix();	
+	GLUquadric* q = gluNewQuadric();
+	gluSphere(q,1,10,10);
 }
 
 void renderScene()
@@ -369,7 +381,9 @@ void reshape(int width, int height)
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 
-	gluPerspective(60, (double)width/height, 0.1, 1000);
+	//g_projection = glm::perspective<float>(60.0, (float)width/height, 0.1, 1000.0); 	
+	g_projection = glm::frustum(-1.0,1.0,-1.0,1.0,1.0,1000.0);
+	glLoadMatrixf(glm::value_ptr(g_projection));
 	glViewport(0,0,width,height);
 }
 

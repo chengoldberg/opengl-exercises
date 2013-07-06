@@ -27,7 +27,7 @@ public:
 
 	GameLogic() {
 		angle = M_PI/2;		
-		loc[0]=0;loc[1]=8;
+		loc[0]=0;loc[1]=0;
 	}
 
 	/**
