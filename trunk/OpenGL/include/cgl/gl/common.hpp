@@ -20,7 +20,9 @@ namespace cgl
 	public:
 		static std::string readFile(std::string filename)
 		{
-			std::ifstream file(filename);
+			std::ifstream file(filename);		
+			if(!file.is_open())
+				throw std::exception("Failed to load file");
 			file.seekg(0, std::ios::end);
 			GLuint size = (GLuint) file.tellg();
 			file.seekg(0, std::ios::beg); 
@@ -103,6 +105,16 @@ namespace cgl
 		Program(Shader& shader)
 		{
 			build(shader);
+		}
+
+		void use() const
+		{
+			glUseProgram(this->getId());
+		}
+
+		void useDefault() const
+		{
+			glUseProgram(0);
 		}
 
 		void build(Shader& shader)
