@@ -99,18 +99,48 @@ typedef struct {
 } Camera;
 
 typedef struct {
+    cl_float left;
+    cl_float right;
+    cl_float bottom;
+    cl_float top;
+    cl_float neard;
+    cl_float fard;
+	cl_float __PADDING[2];
+} Frustum;
+
+typedef struct {
    cl_float4 backgroundCol;
    cl_float3 ambientLight;
    Light light;
    Sphere surface;
    Camera camera;
+   Frustum projection;
 } Scene;
+
+Scene scene;
 
 // ============================== OpenCL Procedures =========================
 
 bool renderSceneCL()
 {
 	cl_int errNum;
+
+	glFlush();
+
+	glm::mat4 M = glm::inverse(g_modelView);	
+	scene.camera.pos.s[0] = M[3][0];
+	scene.camera.pos.s[1] = M[3][1];
+	scene.camera.pos.s[2] = M[3][2];
+
+	scene.camera.right.s[0] = M[0][0];
+	scene.camera.right.s[1] = M[0][1];
+	scene.camera.right.s[2] = M[0][2];
+
+	scene.camera.back.s[0] = -M[2][0];
+	scene.camera.back.s[1] = -M[2][1];
+	scene.camera.back.s[2] = -M[2][2];
+
+	clEnqueueWriteBuffer(g_clCommandQueue, g_clMaterialsMem, CL_TRUE, 0, sizeof(scene), &scene, 0, NULL, NULL);
 
 	// Acquire the GL objects
 	glFinish();
@@ -175,9 +205,8 @@ void initOpenCL()
 	material.specular.s[0] = 1.0; material.specular.s[1] = 1.0; material.specular.s[2] = 1.0;
 	material.shininess = 50.0;
 
-	Scene scene;
 	memset(&scene, 0, sizeof(scene));
-	scene.surface.center.s[0] = 0; scene.surface.center.s[1] = 0; scene.surface.center.s[2] = -10; scene.surface.center.s[3] = 1.0;
+	scene.surface.center.s[0] = 0; scene.surface.center.s[1] = 0; scene.surface.center.s[2] = -12; scene.surface.center.s[3] = 1.0;
 	scene.surface.radius = 1;
 	scene.surface.mat = material;
 	scene.light.pos.s[0] = 10;scene.light.pos.s[1] = 10;scene.light.pos.s[2] = 10;
@@ -187,7 +216,14 @@ void initOpenCL()
 	scene.camera.back.s[0] = 0; scene.camera.back.s[1] = 0; scene.camera.back.s[2] = -1;
 	scene.camera.right.s[0] = 1; scene.camera.right.s[1] = 0; scene.camera.right.s[2] = 0;
 	scene.camera.up.s[0] = 0; scene.camera.up.s[1] = 1; scene.camera.up.s[2] = 0;
-	
+
+	scene.projection.left = -1;
+	scene.projection.right = 1;
+	scene.projection.bottom = -1;
+	scene.projection.top = 1;
+	scene.projection.fard = 10;
+	scene.projection.neard = 1;
+
 	g_clMaterialsMem = clCreateBuffer(g_clContext, CL_MEM_COPY_HOST_PTR, sizeof(scene), &scene, &errNum); 
 	if(errNum != CL_SUCCESS)
 	{

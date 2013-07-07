@@ -40,6 +40,7 @@ typedef struct {
    Light light;
    Sphere surface;
    Camera camera;
+   Frustum projection;
 } Scene;
 
 // Internal
@@ -54,6 +55,11 @@ typedef struct {
    Sphere* surface;
    uchar isMiss;
 } Hit;
+
+typedef struct {
+    float4 color;
+    float depth;
+} Fragment;
 
 Hit createHit(float4 intersection, Sphere* surface, uchar isMiss)
 {
@@ -70,6 +76,14 @@ Ray createRay(float4 p, float4 v)
     r.p = p;
     r.v = v;
     return r;
+}
+
+Fragment createFragment(float4 color, float depth)
+{
+    Fragment f;
+    f.color = color;
+    f.depth = depth;
+    return f;
 }
 
 float3 reflect(float3 L, float3 N) 
@@ -159,35 +173,36 @@ Ray constructRayThroughPixelOrtho(int2 p, Camera* camera)
    return createRay((float4)(convert_float2(p), 0.0,1.0), (float4)(0,0,-1,0));
 }
 
-Ray constructRayThroughPixelPersp(int2 p, Camera* camera) 
+Ray constructRayThroughPixelPersp(int2 p, Scene* scene) 
 {
-    Frustum frustum;
-    frustum.left = -1;
-    frustum.right = +1;
-    frustum.bottom = -1;
-    frustum.top = +1;
-    frustum.near = 1;
-    frustum.far = 100;
+    Camera* camera = &scene->camera;    
+    Frustum* frustum = &scene->projection;
 
-	float4 centerNear = camera->pos + camera->back*frustum.near;
-    float4 p00 = centerNear + frustum.left*camera->right + frustum.top*camera->up;
+	float4 centerNear = camera->pos + camera->back*frustum->near;
+    float4 p00 = centerNear + frustum->left*camera->right + frustum->top*camera->up;
 
 	float2 pr = convert_float2(p)/(float2)(512.0, 512.0);
-    float4 pf = p00 + pr.x*camera->right*(frustum.right - frustum.left) + pr.y*camera->up*(frustum.bottom - frustum.top);
+    float4 pf = p00 + pr.x*camera->right*(frustum->right - frustum->left) + pr.y*camera->up*(frustum->bottom - frustum->top);
     float4 ptr = normalize(pf - camera->pos);  
     return createRay(pf, ptr);
 }
 
-float4 castRay(Scene* scene, int2 p) 
+Fragment castRay(Scene* scene, int2 p) 
 {
-   Ray ray = constructRayThroughPixelPersp(p, &scene->camera);
+   Ray ray = constructRayThroughPixelPersp(p, scene);
    //Ray ray = constructRayThroughPixelOrtho(p, &scene->camera);
 //   return (float4)(ray.v.xyz,1);
 //    return ray.p;
 
    Hit hit = Scene_findIntersection(scene, ray);
         
-   return Scene_calcColor(scene, hit, ray);
+   Fragment fragment;
+   fragment.depth = (dot(hit.intersection - ray.p, ray.v)-scene->projection.near)/(scene->projection.far-scene->projection.near); 
+   fragment.depth = (dot(hit.intersection - ray.p, ray.v)-scene->projection.near)/(scene->projection.far-scene->projection.near);
+   if(hit.isMiss)
+       fragment.depth = 0;
+   fragment.color = Scene_calcColor(scene, hit, ray);
+   return fragment;
 }
 
 __kernel void render(__write_only image2d_t img, __constant Scene *scene)
@@ -197,6 +212,7 @@ __kernel void render(__write_only image2d_t img, __constant Scene *scene)
 	int2 coord = (int2)(gid0, gid1);
 //	float4 color = (float4)(scene->surface.center.x,0,0,0.5);
     __private Scene scenePrivate = *scene;
-	float4 color = castRay(&scenePrivate, coord);
-	write_imagef(img, coord, color);					
+	Fragment fragment = castRay(&scenePrivate, coord);
+	write_imagef(img, coord, fragment.color);					
+	//write_imagef(img, coord, (float4)(fragment.depth,0,0,1));					
 }
