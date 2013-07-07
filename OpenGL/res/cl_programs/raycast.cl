@@ -178,11 +178,12 @@ Ray constructRayThroughPixelPersp(int2 p, Scene* scene)
     Camera* camera = &scene->camera;    
     Frustum* frustum = &scene->projection;
 
+    // Origin is bottm-left of near-plane rectangle
 	float4 centerNear = camera->pos + camera->back*frustum->near;
-    float4 p00 = centerNear + frustum->left*camera->right + frustum->top*camera->up;
+    float4 p00 = centerNear + frustum->left*camera->right + frustum->bottom*camera->up;
 
 	float2 pr = convert_float2(p)/(float2)(512.0, 512.0);
-    float4 pf = p00 + pr.x*camera->right*(frustum->right - frustum->left) + pr.y*camera->up*(frustum->bottom - frustum->top);
+    float4 pf = p00 + pr.x*camera->right*(frustum->right - frustum->left) + pr.y*camera->up*(frustum->top - frustum->bottom);
     float4 ptr = normalize(pf - camera->pos);  
     return createRay(pf, ptr);
 }
@@ -197,10 +198,17 @@ Fragment castRay(Scene* scene, int2 p)
    Hit hit = Scene_findIntersection(scene, ray);
         
    Fragment fragment;
-   fragment.depth = (dot(hit.intersection - ray.p, ray.v)-scene->projection.near)/(scene->projection.far-scene->projection.near); 
-   fragment.depth = (dot(hit.intersection - ray.p, ray.v)-scene->projection.near)/(scene->projection.far-scene->projection.near);
+//   fragment.depth = (dot(hit.intersection - ray.p, ray.v)-scene->projection.near)/(scene->projection.far-scene->projection.near);
+//   fragment.depth = (dot(hit.intersection - ray.p, scene->camera.back)-scene->projection.near)/(scene->projection.far-scene->projection.near);
+
+   float Z = -dot(hit.intersection - scene->camera.pos, scene->camera.back);
+   float C = -(scene->projection.far+scene->projection.near)/(scene->projection.far-scene->projection.near);
+   float D = -2*(scene->projection.far*scene->projection.near)/(scene->projection.far-scene->projection.near);
+   fragment.depth = (Z*C+D)/(-Z);
+//   fragment.depth = (Z - scene->projection.near)/(scene->projection.far - scene->projection.near);
+   
    if(hit.isMiss)
-       fragment.depth = 0;
+       fragment.depth = -1;
    fragment.color = Scene_calcColor(scene, hit, ray);
    return fragment;
 }
@@ -213,6 +221,10 @@ __kernel void render(__write_only image2d_t img, __constant Scene *scene)
 //	float4 color = (float4)(scene->surface.center.x,0,0,0.5);
     __private Scene scenePrivate = *scene;
 	Fragment fragment = castRay(&scenePrivate, coord);
-	write_imagef(img, coord, fragment.color);					
+    float4 res = (float4)(fragment.color.xyz, fragment.depth);
+    
+    // Image origin is bottom-left
+  	write_imagef(img, coord, res);					
+  
 	//write_imagef(img, coord, (float4)(fragment.depth,0,0,1));					
 }

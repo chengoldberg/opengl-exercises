@@ -34,6 +34,8 @@
 #include "cgl/cl/common.h"
 #include "CL/cl_platform.h"
 
+#include "cgl/gl/common.hpp"
+
 #pragma comment (lib, "glew32.lib")
 using namespace std;
 
@@ -58,6 +60,12 @@ bool			g_isOpenCL, g_isAnimate;
 GLuint			g_texture;	// Texture Object IDs
 
 glm::mat4 g_modelView(1), g_projection;
+cgl::Program g_layerCLProgram;
+
+struct 
+{
+	GLuint tex;
+} g_uniforms;
 
 float colorDarkGray[] = {0.2f,0.2f,0.2f,0};
 
@@ -209,7 +217,7 @@ void initOpenCL()
 	scene.surface.center.s[0] = 0; scene.surface.center.s[1] = 0; scene.surface.center.s[2] = -12; scene.surface.center.s[3] = 1.0;
 	scene.surface.radius = 1;
 	scene.surface.mat = material;
-	scene.light.pos.s[0] = 10;scene.light.pos.s[1] = 10;scene.light.pos.s[2] = 10;
+	scene.light.pos.s[0] = -10;scene.light.pos.s[1] = 10;scene.light.pos.s[2] = 10; scene.light.pos.s[3] = 1;
 	scene.light.color.s[0] = 1;scene.light.color.s[1] = 1; scene.light.color.s[2] = 1;
 	
 	scene.camera.pos.s[3] = 1.0;
@@ -221,7 +229,7 @@ void initOpenCL()
 	scene.projection.right = 1;
 	scene.projection.bottom = -1;
 	scene.projection.top = 1;
-	scene.projection.fard = 10;
+	scene.projection.fard = 100;
 	scene.projection.neard = 1;
 
 	g_clMaterialsMem = clCreateBuffer(g_clContext, CL_MEM_COPY_HOST_PTR, sizeof(scene), &scene, &errNum); 
@@ -258,6 +266,10 @@ void setupCamera()
 
 void drawScreenAlignedQuad()
 {
+	g_layerCLProgram.use();
+
+	glUniform1i(g_uniforms.tex, 0);
+
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glMatrixMode(GL_MODELVIEW);	
@@ -294,6 +306,8 @@ void drawScreenAlignedQuad()
 	glMatrixMode(GL_PROJECTION);
 	glPopMatrix();
 	glDisable(GL_BLEND);
+	
+	g_layerCLProgram.useDefault();
 }
 
 void renderWorld() 
@@ -319,6 +333,16 @@ void renderScene()
 	glLoadIdentity();
 
 	setupCamera();	
+	glLoadMatrixf(glm::value_ptr(g_modelView));
+
+	// Setup sky light		
+	float colorBlack[] = {0,0,0,1};
+	float colorWhite[] = {1,1,1,1};
+	glEnable(GL_LIGHT0);
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, colorWhite);
+	glLightfv(GL_LIGHT0, GL_AMBIENT, colorBlack);
+	glLightfv(GL_LIGHT0, GL_SPECULAR, colorWhite);
+	glLightfv(GL_LIGHT0, GL_POSITION, scene.light.pos.s);
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);			
 	glEnable(GL_LIGHTING);
@@ -330,7 +354,7 @@ void renderScene()
 	// Draw world
 	renderWorld();
 	
-	glDisable(GL_DEPTH_TEST);			
+	//glDisable(GL_DEPTH_TEST);			
 	drawScreenAlignedQuad();
 }
 
@@ -343,7 +367,7 @@ void initTexture()
 {
 	glGenTextures(1, &g_texture);
 
-	static GLubyte pixels[TEXTURE_WIDTH][TEXTURE_HEIGHT][4];
+	static GLfloat pixels[TEXTURE_WIDTH][TEXTURE_HEIGHT][4];
 
 	int span = (int) powl(2,CHECKER_SIZE);
 	for(int i = 0;i<TEXTURE_WIDTH;++i)		
@@ -363,11 +387,26 @@ void initTexture()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, TEXTURE_WIDTH, TEXTURE_HEIGHT, 0, GL_RGBA, GL_FLOAT, pixels);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+void initDebug()
+{
+	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+	glDebugMessageCallback(&debugOutput, NULL);
+}
+
+void initShaders() 
+{
+	std::vector<cgl::Shader> shaders;
+	shaders.push_back(cgl::Shader::fromFile(GL_FRAGMENT_SHADER,"../res/shader/ex16.frag"));		
+	g_layerCLProgram.build(shaders);	
+
+	g_uniforms.tex = glGetUniformLocation(g_layerCLProgram.getId(), "uTex");
+}
 
 void init() 
 {
@@ -375,19 +414,10 @@ void init()
 	glEnable(GL_NORMALIZE);
 	glPointSize(1);	
 
-	// Setup sky light		
-	float colorBlack[] = {0,0,0,1};
-	float colorWhite[] = {1,1,1,1};
-	glEnable(GL_LIGHT0);
-	glLightfv(GL_LIGHT0, GL_DIFFUSE, colorWhite);
-	glLightfv(GL_LIGHT0, GL_AMBIENT, colorBlack);
-	glLightfv(GL_LIGHT0, GL_SPECULAR, colorWhite);
-
-	g_isOpenCL = true;
-	g_isAnimate = false;
-
 	initTexture();
 	initOpenCL();
+	initShaders();
+	initDebug();
 }
 
 // ============================== GLUT Callbacks =========================
@@ -418,7 +448,7 @@ void reshape(int width, int height)
 	glLoadIdentity();
 
 	//g_projection = glm::perspective<float>(60.0, (float)width/height, 0.1, 1000.0); 	
-	g_projection = glm::frustum(-1.0,1.0,-1.0,1.0,1.0,1000.0);
+	g_projection = glm::frustum(-1.0f,1.0f,-1.0f,1.0f,scene.projection.neard,scene.projection.fard);
 	glLoadMatrixf(glm::value_ptr(g_projection));
 	glViewport(0,0,width,height);
 }
@@ -491,7 +521,7 @@ int main(int argc, char **argv) {
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_ALPHA);
 	glutInitWindowPosition(0, 0);
-	glutInitWindowSize(512, 512);
+	glutInitWindowSize(512+8, 512+8);
 
 	glutCreateWindow("ex16 - OpenCL raycasting");
 
