@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010  Chen Goldberg
+ * Copyright (C) 2013  Chen Goldberg
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU Lesser General Public License as published by
@@ -25,6 +25,7 @@
 #include <GL/glew.h>
 #include <GL/glut.h>
 #include <math.h>
+#include <time.h>
 
 #include "glm/glm.hpp"
 #include <glm/gtc/matrix_transform.hpp>
@@ -35,6 +36,7 @@
 #include "CL/cl_platform.h"
 
 #include "cgl/gl/common.hpp"
+#include "CTargaImage.cpp"
 
 #pragma comment (lib, "glew32.lib")
 using namespace std;
@@ -71,6 +73,8 @@ GLuint			g_texture;	// Texture Object IDs
 glm::mat4 g_modelView(1), g_projection;
 cgl::Program g_layerCLProgram;
 
+cgl::Timer	g_timerCL, g_timerGL;
+
 struct 
 {
 	GLuint tex;
@@ -94,7 +98,7 @@ typedef struct {
    cl_float3 specular;
    float shininess;
    cl_float reflectance;
-   float __PADDING[2];
+   float __PADDING[2];	// Padding is important for keeping all structs aligned to 16 bytes
 } Material;
 
 typedef struct {
@@ -128,16 +132,14 @@ typedef struct {
 } Frustum;
 
 typedef struct {
-   cl_int surfacesOffset;
+   cl_int surfacesOffset;	//NOTE: If I move this to the end of the struct, it will fail to load.
    cl_int surfacesTotal;
    cl_float __PADDING[2];
 	cl_float4 backgroundCol;
    cl_float3 ambientLight;
    Light light;
-   Sphere surface;
    Camera camera;
    Frustum projection;
-
 } Scene;
 
 Scene scene;
@@ -148,8 +150,10 @@ bool renderSceneCL()
 {
 	cl_int errNum;
 
+	// Might as well flush pipeline, because the next gl command is glFinish.
 	glFlush();
 
+	// Obtain the camera coordinate system from the ModelView (invert to get the "ViewModel")
 	glm::mat4 M = glm::inverse(g_modelView);	
 	scene.camera.pos.s[0] = M[3][0];
 	scene.camera.pos.s[1] = M[3][1];
@@ -171,6 +175,8 @@ bool renderSceneCL()
 
 	// Acquire the GL objects
 	glFinish();
+	g_timerGL.stop();
+	g_timerCL.start();
 
 	cl_mem objects[] = {g_clTexMem};
 	const int objectsNum = 1;
@@ -195,6 +201,7 @@ bool renderSceneCL()
 
 	errNum = clEnqueueReleaseGLObjects(g_clCommandQueue, objectsNum, objects,0,NULL,NULL);	
 	clFinish(g_clCommandQueue);
+	g_timerCL.stop();
 	
 	return true;
 }
@@ -225,6 +232,7 @@ void initOpenCL()
 		std::cerr << "Failed to create from GL texture" << std::endl;
 	}
 
+	// Init scene
 	Material material;
 	memset(&material, 0, sizeof(material));
 	material.ambient.s[0] = 0.1f;material.ambient.s[1] = 0.1f;material.ambient.s[2] = 0.1f;
@@ -233,9 +241,6 @@ void initOpenCL()
 	material.shininess = 50.0;
 
 	memset(&scene, 0, sizeof(scene));
-	scene.surface.center.s[0] = 0; scene.surface.center.s[1] = 0; scene.surface.center.s[2] = -12; scene.surface.center.s[3] = 1.0;
-	scene.surface.radius = 1;
-	scene.surface.mat = material;
 	scene.light.pos.s[0] = -10;scene.light.pos.s[1] = 10;scene.light.pos.s[2] = 10; scene.light.pos.s[3] = 1;
 	scene.light.color.s[0] = 1;scene.light.color.s[1] = 1; scene.light.color.s[2] = 1;
 	scene.light.ambient.s[0] = 0.2; scene.light.ambient.s[1] = 0.2; scene.light.ambient.s[2] = 0.2;
@@ -319,6 +324,48 @@ void initOpenCL()
 
 // ============================== Drawing Procedures =========================
 
+void drawString(char* txt) {
+	while(*txt != '\0') {
+		glutBitmapCharacter(GLUT_BITMAP_TIMES_ROMAN_24, *txt);
+		txt++;		
+	}
+}
+
+void drawHUD() {	
+	static char temp0[25];
+	static char temp1[25];
+
+	sprintf(temp0, "GL: %2.2f ms", g_timerGL.averageTail());
+	sprintf(temp1, "CL: %2.2f ms", g_timerCL.averageTail());
+
+	glViewport(0,0,g_width,g_height);
+	glMatrixMode(GL_PROJECTION);
+	glPushMatrix();
+	glLoadIdentity();
+	glOrtho(0,g_width,0,g_height,-100,100);
+	glMatrixMode(GL_MODELVIEW);
+	glPushMatrix();
+	glLoadIdentity();
+	
+	glDisable(GL_LIGHTING);
+	glDisable(GL_DEPTH_TEST);
+
+	glColor3d(1,1,1);
+
+	glRasterPos2d(5,5);
+	drawString(temp0);
+	glRasterPos2d(5,25);
+	drawString(temp1);
+	
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_LIGHTING);
+
+	glMatrixMode(GL_MODELVIEW);
+	glPopMatrix();
+	glMatrixMode(GL_PROJECTION);
+	glPopMatrix();
+}
+
 //
 // Create camera transformation that captures the player's POV
 //
@@ -378,10 +425,8 @@ void drawScreenAlignedQuad()
 
 void renderWorld() 
 {
-	float l0_amb[] = {0.5f,0.5f,0.5f,1};
-	float l0_diff[] = {1,0,1,1};
-	float l0_spec[] = {0.05f,0.05f,0.05f,1};
-	
+	float colorBlack[] = {0,0,0,1};
+	float colorWhite[] = {1,1,1,1};
 	GLUquadric* q = gluNewQuadric();
 
 	glDisable(GL_LIGHTING);
@@ -390,6 +435,7 @@ void renderWorld()
 	glm::mat4 temp = g_modelView;
 	g_modelView = glm::rotate(g_modelView, 90.0f, glm::vec3(1,0,0));
 	glLoadMatrixf(glm::value_ptr(g_modelView));
+	glColor3f(1,1,1);
 	gluSphere(q,7,8,8);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	glEnable(GL_LIGHTING);
@@ -402,9 +448,9 @@ void renderWorld()
 		{	
 			glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, Colors[g_game.objects[i].colorIndex]);
 			glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, Colors[g_game.objects[i].colorIndex]);
-			glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, scene.surface.mat.specular.s);
-			glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, scene.surface.mat.emission.s);
-			glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, scene.surface.mat.shininess);
+			glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, colorWhite);
+			glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, colorBlack);
+			glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 50);
 
 			glm::mat4 temp = g_modelView;
 			g_modelView = glm::translate(g_modelView, glm::vec3(g_game.objects[i].pos[0],g_game.objects[i].pos[1],g_game.objects[i].pos[2]));
@@ -418,6 +464,7 @@ void renderWorld()
 
 void renderScene()
 {
+	g_timerGL.start();
 	// Create camera transformation
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
@@ -448,6 +495,8 @@ void renderScene()
 	
 	//glDisable(GL_DEPTH_TEST);			
 	drawScreenAlignedQuad();
+
+	drawHUD();
 }
 
 // ============================== Init Procedures =========================
@@ -515,7 +564,7 @@ void init()
 // ============================== GLUT Callbacks =========================
 
 void display(void) 
-{
+{	
 	glDepthFunc(GL_LEQUAL);
 	glDisable(GL_BLEND);
 
@@ -526,20 +575,29 @@ void display(void)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);			
 		
 	renderScene();
-
+	
+	/*	
+	char buffer[512*512*3];
+	memset(buffer, 0, 512*512*3);
+	glReadBuffer(GL_BACK_LEFT);
+	glReadPixels(0,0,g_width,g_height,GL_RGB,GL_UNSIGNED_BYTE,buffer);
+	ofstream f("C:\\TEMP\\temp2.raw", std::ios_base::binary);
+	f.write(buffer,g_width*g_height*3);
+	f.close();
+	*/
+	
 	// Swap double buffer
 	glutSwapBuffers();
 }
 
 void reshape(int width, int height) 
 {
-	g_width = width; g_height = height;
+	g_width = 512; g_height = 512;
 		
 	// Create perspective projection
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 
-	//g_projection = glm::perspective<float>(60.0, (float)width/height, 0.1, 1000.0); 	
 	g_projection = glm::frustum(scene.projection.left,scene.projection.right,scene.projection.bottom,scene.projection.top,scene.projection.neard,scene.projection.fard);
 	glLoadMatrixf(glm::value_ptr(g_projection));
 	glViewport(0,0,width,height);
@@ -602,7 +660,7 @@ int main(int argc, char **argv) {
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_ALPHA);
 	glutInitWindowPosition(0, 0);
-	glutInitWindowSize(512+8, 512+8);
+	glutInitWindowSize(512+8*2, 512+8*2);
 
 	glutCreateWindow("ex16 - OpenCL raycasting");
 

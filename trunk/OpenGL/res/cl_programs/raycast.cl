@@ -44,7 +44,6 @@ typedef struct {
    float4 backgroundCol;
    float3 ambientLight;
    Light light;
-   Sphere surface;
    Camera camera;
    Frustum projection;
 } Scene;
