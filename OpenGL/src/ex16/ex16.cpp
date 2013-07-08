@@ -50,6 +50,15 @@ using namespace std;
 
 #define IMAGE_SIZE 512
 
+struct Point
+{
+	int x,y;
+
+	Point() {}
+	Point(int _x, int _y) : x(_x), y(_y) {}
+};
+
+Point g_prevMouse;
 unsigned int	g_frame;
 GameLogic		g_game;
 GLuint			g_imageTex; 
@@ -72,7 +81,7 @@ float colorDarkGray[] = {0.2f,0.2f,0.2f,0};
 // OpenCL global variables
 cl_program		g_clProgram;
 cl_kernel		g_clKernel;
-cl_mem			g_clTexMem, g_clMaterialsMem;
+cl_mem			g_clTexMem, g_clMaterialsMem, g_clBufferMem;
 cl_context		g_clContext;
 cl_command_queue g_clCommandQueue;
 
@@ -117,12 +126,16 @@ typedef struct {
 } Frustum;
 
 typedef struct {
-   cl_float4 backgroundCol;
+   cl_int surfacesOffset;
+   cl_int surfacesTotal;
+   cl_float __PADDING[2];
+	cl_float4 backgroundCol;
    cl_float3 ambientLight;
    Light light;
    Sphere surface;
    Camera camera;
    Frustum projection;
+
 } Scene;
 
 Scene scene;
@@ -225,12 +238,15 @@ void initOpenCL()
 	scene.camera.right.s[0] = 1; scene.camera.right.s[1] = 0; scene.camera.right.s[2] = 0;
 	scene.camera.up.s[0] = 0; scene.camera.up.s[1] = 1; scene.camera.up.s[2] = 0;
 
-	scene.projection.left = -1;
-	scene.projection.right = 1;
-	scene.projection.bottom = -1;
-	scene.projection.top = 1;
+	scene.projection.left = -0.5;
+	scene.projection.right = 0.5;
+	scene.projection.bottom = -0.5;
+	scene.projection.top = 0.5;
 	scene.projection.fard = 100;
-	scene.projection.neard = 1;
+	scene.projection.neard = 0.5;
+
+	scene.surfacesOffset = 0;
+	scene.surfacesTotal = 16;
 
 	g_clMaterialsMem = clCreateBuffer(g_clContext, CL_MEM_COPY_HOST_PTR, sizeof(scene), &scene, &errNum); 
 	if(errNum != CL_SUCCESS)
@@ -238,9 +254,31 @@ void initOpenCL()
 		std::cerr << "Failed to create buffer" << std::endl;
 	}
 
+	unsigned char buffer[2000];
+	memset(&buffer, 0, sizeof(buffer));
+
+	Sphere* sphere = (Sphere*) buffer;
+
+	for(int i=0; i<scene.surfacesTotal; ++i)
+	{
+		float r = ((float)i)/scene.surfacesTotal;
+		int x = 10*cos(r*2*M_PI);
+		int y = 10*sin(r*2*M_PI);	
+		sphere[i].center.s[0] = x; sphere[i].center.s[1] = 0; sphere[i].center.s[2] = y; sphere[i].center.s[3] = 1.0;
+		sphere[i].radius = 2;
+		sphere[i].mat = material;
+	}
+
+	g_clBufferMem = clCreateBuffer(g_clContext, CL_MEM_COPY_HOST_PTR, sizeof(buffer), buffer, &errNum); 
+	if(errNum != CL_SUCCESS)
+	{
+		std::cerr << "Failed to create buffer" << std::endl;
+	}
+
 	// Set the kernel arguments
 	errNum = clSetKernelArg(g_clKernel, 0, sizeof(cl_mem), &g_clTexMem);	
-	errNum = clSetKernelArg(g_clKernel, 1, sizeof(cl_mem), &g_clMaterialsMem);	
+	errNum |= clSetKernelArg(g_clKernel, 1, sizeof(cl_mem), &g_clMaterialsMem);	
+	errNum |= clSetKernelArg(g_clKernel, 2, sizeof(cl_mem), &g_clBufferMem);	
 	if(errNum != CL_SUCCESS)
 	{
 		std::cerr << "Error setting Kernel arguments" << std::endl;
@@ -256,12 +294,10 @@ void initOpenCL()
 //
 void setupCamera() 
 {
-	// Convert player's angle to world angle
-	double angle = g_game.getAngle()*180.0/M_PI - 90;
-
 	g_modelView = glm::mat4();
-	g_modelView = glm::rotate(g_modelView, (float)angle, glm::vec3(0,1,0));
-	g_modelView = glm::translate(g_modelView, glm::vec3(-g_game.getPlayerLoc()[0], 0, -g_game.getPlayerLoc()[1]));
+	g_modelView = glm::translate(g_modelView, glm::vec3(0,0,-20));
+	g_modelView = glm::rotate(g_modelView, g_game.rotY, glm::vec3(1,0,0));
+	g_modelView = glm::rotate(g_modelView, g_game.rotX, glm::vec3(0,1,0));	
 }	
 
 void drawScreenAlignedQuad()
@@ -315,11 +351,14 @@ void renderWorld()
 	float l0_amb[] = {0.5f,0.5f,0.5f,1};
 	float l0_diff[] = {1,0,1,1};
 	float l0_spec[] = {0.05f,0.05f,0.05f,1};
-
-	glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 50);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, l0_diff);
 	
-	g_modelView = glm::translate(g_modelView, glm::vec3(0,0,-10));
+	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, scene.surface.mat.ambient.s);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, scene.surface.mat.diffuse.s);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, scene.surface.mat.specular.s);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, scene.surface.mat.emission.s);
+	glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, scene.surface.mat.shininess);
+	
+	g_modelView = glm::translate(g_modelView, glm::vec3(0,0,0));
 	glLoadMatrixf(glm::value_ptr(g_modelView));
 
 	GLUquadric* q = gluNewQuadric();
@@ -340,7 +379,7 @@ void renderScene()
 	float colorWhite[] = {1,1,1,1};
 	glEnable(GL_LIGHT0);
 	glLightfv(GL_LIGHT0, GL_DIFFUSE, colorWhite);
-	glLightfv(GL_LIGHT0, GL_AMBIENT, colorBlack);
+	glLightfv(GL_LIGHT0, GL_AMBIENT, colorWhite);
 	glLightfv(GL_LIGHT0, GL_SPECULAR, colorWhite);
 	glLightfv(GL_LIGHT0, GL_POSITION, scene.light.pos.s);
 
@@ -448,7 +487,7 @@ void reshape(int width, int height)
 	glLoadIdentity();
 
 	//g_projection = glm::perspective<float>(60.0, (float)width/height, 0.1, 1000.0); 	
-	g_projection = glm::frustum(-1.0f,1.0f,-1.0f,1.0f,scene.projection.neard,scene.projection.fard);
+	g_projection = glm::frustum(scene.projection.left,scene.projection.right,scene.projection.bottom,scene.projection.top,scene.projection.neard,scene.projection.fard);
 	glLoadMatrixf(glm::value_ptr(g_projection));
 	glViewport(0,0,width,height);
 }
@@ -469,24 +508,6 @@ void timer(int value)
 
 void keyboardFunc(int key, int x, int y) {
 	switch(key) {
-	case GLUT_KEY_DOWN: 
-		g_game.setMoveBackward(true);
-		break;
-	case GLUT_KEY_UP:
-		g_game.setMoveForward(true);
-		break;
-	case GLUT_KEY_LEFT:
-		if(glutGetModifiers() == GLUT_ACTIVE_ALT)
-			g_game.setStrafeLeft(true);
-		else
-			g_game.setTurnLeft(true);
-		break;
-	case GLUT_KEY_RIGHT:
-		if(glutGetModifiers() == GLUT_ACTIVE_ALT)
-			g_game.setStrafeRight(true);
-		else
-			g_game.setTurnRight(true);
-		break;
 	case GLUT_KEY_F1:
 		break;
 	case GLUT_KEY_F2:
@@ -499,20 +520,27 @@ void keyboardFunc(int key, int x, int y) {
 
 void keyboardUpFunc(int key, int x, int y) {
 	switch(key) {
-	case GLUT_KEY_DOWN: 
-		g_game.setMoveBackward(false);
-		break;
-	case GLUT_KEY_UP:
-		g_game.setMoveForward(false);
-		break;
-	case GLUT_KEY_LEFT:
-		g_game.setTurnLeft(false);
-		g_game.setStrafeLeft(false);
-		break;
-	case GLUT_KEY_RIGHT:
-		g_game.setTurnRight(false);
-		g_game.setStrafeRight(false);
-		break;		
+	}
+}
+
+void motionFunc(int x, int y) 
+{
+	// Calc difference from previous mouse location
+	Point prev = g_prevMouse;
+	int dx = prev.x - x;
+	int dy = prev.y - y;
+
+	// Rotate model
+	g_game.rotate(dx, dy);
+
+	// Remember mouse location 
+	g_prevMouse = Point(x,y);	
+}
+
+void mouseFunc(int button, int state, int x, int y) 
+{
+	if(button == GLUT_LEFT_BUTTON){
+		g_prevMouse = Point(x,y);	
 	}
 }
 
@@ -531,6 +559,8 @@ int main(int argc, char **argv) {
 	glutTimerFunc(16,timer,0);
 	glutSpecialFunc(keyboardFunc);
 	glutSpecialUpFunc(keyboardUpFunc);
+	glutMotionFunc(motionFunc);
+	glutMouseFunc(mouseFunc);
 	
 	//glutFullScreen();	
 

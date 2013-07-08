@@ -35,6 +35,10 @@ typedef struct {
 } Frustum;
 
 typedef struct {
+   int surfacesOffset;
+   int surfacesTotal;
+   int x;
+   int y;    
    float4 backgroundCol;
    float3 ambientLight;
    Light light;
@@ -115,13 +119,21 @@ float Sphere_nearestIntersection(Sphere* self, Ray ray)
    return (tn > 0.0) ? tn : tp; // Inside or outside      
 }
 
-Hit Scene_findIntersection(Scene* self, Ray ray) 
+Hit Scene_findIntersection(Scene* self, Ray ray, Sphere* surfaces) 
 {     
     float minDistance = 9999.0;
     Sphere* minSurface;
 
-    minDistance = Sphere_nearestIntersection(&self->surface, ray);
-    minSurface = &self->surface;
+    for(int i=0;i<self->surfacesTotal;++i)
+    {
+        float curDistance = Sphere_nearestIntersection(surfaces+i, ray);
+        if(curDistance < minDistance)
+        {
+            minDistance = curDistance;
+            minSurface = surfaces+i;
+        }
+    }
+    
     if(minDistance ==  9999.0)
         return createHit((float4)(0), minSurface, true);
       
@@ -152,16 +164,19 @@ float4 Scene_calcColor(Scene* self, Hit hit, Ray ray)
       float3 L = normalize((lights[i]->pos - hit.intersection).xyz);
       float3 V = normalize((ray.v).xyz);
       float3 R = reflect(L,normal.xyz);
-      
-      float da= dot(normal, L);      
-      if(da < 0)
-         da = 0;         
-         
+
       float sa = dot(R, L);
       if(sa < 0)
          sa = 0;
+      
+      float da= dot(normal, L);      
+      if(da < 0) 
+      {          
+         da = 0;                 
+         sa = 0;
+      }
        
-      lightTerm = (da*mat.diffuse + pow(sa, mat.shininess)*mat.specular)*lights[i]->color.xyz;                           
+      lightTerm = (mat.ambient + da*mat.diffuse + pow(sa, mat.shininess)*mat.specular)*lights[i]->color.xyz;                           
       res += lightTerm;      
    }
    
@@ -188,14 +203,14 @@ Ray constructRayThroughPixelPersp(int2 p, Scene* scene)
     return createRay(pf, ptr);
 }
 
-Fragment castRay(Scene* scene, int2 p) 
+Fragment castRay(Scene* scene, int2 p, Sphere* surfaces) 
 {
    Ray ray = constructRayThroughPixelPersp(p, scene);
    //Ray ray = constructRayThroughPixelOrtho(p, &scene->camera);
 //   return (float4)(ray.v.xyz,1);
 //    return ray.p;
 
-   Hit hit = Scene_findIntersection(scene, ray);
+   Hit hit = Scene_findIntersection(scene, ray, surfaces);
         
    Fragment fragment;
 //   fragment.depth = (dot(hit.intersection - ray.p, ray.v)-scene->projection.near)/(scene->projection.far-scene->projection.near);
@@ -213,18 +228,32 @@ Fragment castRay(Scene* scene, int2 p)
    return fragment;
 }
 
-__kernel void render(__write_only image2d_t img, __constant Scene *scene)
+__kernel void render(__write_only image2d_t img, __constant Scene *scene, __constant char *buffer)
 {
     int gid0 = get_global_id(0);  // X    
 	int gid1 = get_global_id(1);  // Y
 	int2 coord = (int2)(gid0, gid1);
 //	float4 color = (float4)(scene->surface.center.x,0,0,0.5);
     __private Scene scenePrivate = *scene;
-	Fragment fragment = castRay(&scenePrivate, coord);
-    float4 res = (float4)(fragment.color.xyz, fragment.depth);
+    __private char bufferPrivate[2000];  
     
+    // Copy to private buffer
+    __constant Sphere* spheres = (__constant Sphere*) (buffer);
+    __private Sphere* spheresPrivate = (Sphere*) bufferPrivate;
+
+    int i=0;
+    while(i<scenePrivate.surfacesTotal)
+    {
+        spheresPrivate[i] = spheres[i];      
+        i++;
+    }        
+    
+    // Cast rays
+	Fragment fragment = castRay(&scenePrivate, coord, spheresPrivate);
+
+    // Encode fragment depth as Alpha channel
+    float4 res = (float4)(fragment.color.xyz, fragment.depth);
+
     // Image origin is bottom-left
   	write_imagef(img, coord, res);					
-  
-	//write_imagef(img, coord, (float4)(fragment.depth,0,0,1));					
 }
