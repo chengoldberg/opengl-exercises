@@ -5,6 +5,7 @@ typedef struct {
    float3 diffuse;
    float3 specular;
    float shininess;
+   float reflectance;
 } Material;
 
 typedef struct {
@@ -16,6 +17,7 @@ typedef struct {
 typedef struct {
    float4 pos;
    float4 color;
+   float4 ambient;   
 } Light;
 
 typedef struct {
@@ -176,7 +178,7 @@ float4 Scene_calcColor(Scene* self, Hit hit, Ray ray)
          sa = 0;
       }
        
-      lightTerm = (mat.ambient + da*mat.diffuse + pow(sa, mat.shininess)*mat.specular)*lights[i]->color.xyz;                           
+      lightTerm = mat.ambient*lights[i]->ambient.xyz + (da*mat.diffuse + pow(sa, mat.shininess)*mat.specular)*lights[i]->color.xyz;                           
       res += lightTerm;      
    }
    
@@ -206,25 +208,33 @@ Ray constructRayThroughPixelPersp(int2 p, Scene* scene)
 Fragment castRay(Scene* scene, int2 p, Sphere* surfaces) 
 {
    Ray ray = constructRayThroughPixelPersp(p, scene);
-   //Ray ray = constructRayThroughPixelOrtho(p, &scene->camera);
-//   return (float4)(ray.v.xyz,1);
-//    return ray.p;
-
    Hit hit = Scene_findIntersection(scene, ray, surfaces);
         
    Fragment fragment;
-//   fragment.depth = (dot(hit.intersection - ray.p, ray.v)-scene->projection.near)/(scene->projection.far-scene->projection.near);
-//   fragment.depth = (dot(hit.intersection - ray.p, scene->camera.back)-scene->projection.near)/(scene->projection.far-scene->projection.near);
 
-   float Z = -dot(hit.intersection - scene->camera.pos, scene->camera.back);
-   float C = -(scene->projection.far+scene->projection.near)/(scene->projection.far-scene->projection.near);
-   float D = -2*(scene->projection.far*scene->projection.near)/(scene->projection.far-scene->projection.near);
-   fragment.depth = (Z*C+D)/(-Z);
-//   fragment.depth = (Z - scene->projection.near)/(scene->projection.far - scene->projection.near);
-   
    if(hit.isMiss)
+   {
        fragment.depth = -1;
+   }
+   else
+   {
+       // Apply opengl's frustrum function to get the NDC's z-coordinate. 
+       float Z = -dot(hit.intersection - scene->camera.pos, scene->camera.back);
+       float C = -(scene->projection.far+scene->projection.near)/(scene->projection.far-scene->projection.near);
+       float D = -2*(scene->projection.far*scene->projection.near)/(scene->projection.far-scene->projection.near);
+       fragment.depth = (Z*C+D)/(-Z);
+   }  
+
    fragment.color = Scene_calcColor(scene, hit, ray);
+   if(!hit.isMiss && hit.surface->mat.reflectance>0) 
+   {
+       float3 normal = Sphere_normalAt(hit.surface, hit.intersection, ray).xyz;
+       Ray refRay = createRay(hit.intersection, (float4)(reflect(-ray.v.xyz,normal.xyz),0));
+       refRay.p += 0.001f*refRay.v;
+       Hit refHit = Scene_findIntersection(scene, refRay, surfaces);
+	   float4 refColor = Scene_calcColor(scene, refHit, refRay);
+       fragment.color = fragment.color*(1-hit.surface->mat.reflectance) + refColor*hit.surface->mat.reflectance;
+   }
    return fragment;
 }
 
@@ -257,3 +267,4 @@ __kernel void render(__write_only image2d_t img, __constant Scene *scene, __cons
     // Image origin is bottom-left
   	write_imagef(img, coord, res);					
 }
+

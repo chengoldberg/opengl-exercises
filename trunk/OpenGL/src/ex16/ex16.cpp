@@ -93,7 +93,8 @@ typedef struct {
    cl_float3 diffuse;
    cl_float3 specular;
    float shininess;
-   float __PADDING[3];
+   cl_float reflectance;
+   float __PADDING[2];
 } Material;
 
 typedef struct {
@@ -106,6 +107,7 @@ typedef struct {
 typedef struct {
    cl_float4 pos;
    cl_float4 color;
+   cl_float4 ambient;
 } Light;
 
 typedef struct {
@@ -160,6 +162,10 @@ bool renderSceneCL()
 	scene.camera.back.s[0] = -M[2][0];
 	scene.camera.back.s[1] = -M[2][1];
 	scene.camera.back.s[2] = -M[2][2];
+
+	scene.camera.up.s[0] = M[1][0];
+	scene.camera.up.s[1] = M[1][1];
+	scene.camera.up.s[2] = M[1][2];
 
 	clEnqueueWriteBuffer(g_clCommandQueue, g_clMaterialsMem, CL_TRUE, 0, sizeof(scene), &scene, 0, NULL, NULL);
 
@@ -232,7 +238,8 @@ void initOpenCL()
 	scene.surface.mat = material;
 	scene.light.pos.s[0] = -10;scene.light.pos.s[1] = 10;scene.light.pos.s[2] = 10; scene.light.pos.s[3] = 1;
 	scene.light.color.s[0] = 1;scene.light.color.s[1] = 1; scene.light.color.s[2] = 1;
-	
+	scene.light.ambient.s[0] = 0.2; scene.light.ambient.s[1] = 0.2; scene.light.ambient.s[2] = 0.2;
+
 	scene.camera.pos.s[3] = 1.0;
 	scene.camera.back.s[0] = 0; scene.camera.back.s[1] = 0; scene.camera.back.s[2] = -1;
 	scene.camera.right.s[0] = 1; scene.camera.right.s[1] = 0; scene.camera.right.s[2] = 0;
@@ -245,8 +252,10 @@ void initOpenCL()
 	scene.projection.fard = 100;
 	scene.projection.neard = 0.5;
 
+	scene.backgroundCol.s[0] = 0.5;scene.backgroundCol.s[1] = 0.5;scene.backgroundCol.s[2] = 0.5;scene.backgroundCol.s[3] = 1;
+
 	scene.surfacesOffset = 0;
-	scene.surfacesTotal = 16;
+	scene.surfacesTotal = g_game.raycastTotal+1;
 
 	g_clMaterialsMem = clCreateBuffer(g_clContext, CL_MEM_COPY_HOST_PTR, sizeof(scene), &scene, &errNum); 
 	if(errNum != CL_SUCCESS)
@@ -259,15 +268,36 @@ void initOpenCL()
 
 	Sphere* sphere = (Sphere*) buffer;
 
-	for(int i=0; i<scene.surfacesTotal; ++i)
+	int cnt = 0;
+	for(int i=0; i<g_game.objects.size(); ++i)
 	{
-		float r = ((float)i)/scene.surfacesTotal;
-		int x = 10*cos(r*2*M_PI);
-		int y = 10*sin(r*2*M_PI);	
-		sphere[i].center.s[0] = x; sphere[i].center.s[1] = 0; sphere[i].center.s[2] = y; sphere[i].center.s[3] = 1.0;
-		sphere[i].radius = 2;
-		sphere[i].mat = material;
+		if(!g_game.objects[i].isGL)
+		{
+			memcpy(sphere[cnt].center.s, g_game.objects[i].pos, 4*sizeof(float));
+			sphere[cnt].radius = 2;
+			sphere[cnt].mat = material;
+			memcpy(sphere[cnt].mat.ambient.s, Colors[g_game.objects[i].colorIndex], 3*sizeof(float));	
+			memcpy(sphere[cnt].mat.diffuse.s, Colors[g_game.objects[i].colorIndex], 3*sizeof(float));	
+			cnt++;
+		}
 	}
+
+	// Set sphere in center
+	{
+		Material material;
+		memset(&material, 0, sizeof(material));
+		material.ambient.s[0] = 1;material.ambient.s[1] = 0.5f;material.ambient.s[2] = 0;
+		material.diffuse.s[0] = 1; material.diffuse.s[1] = 0.5; material.diffuse.s[2] = 0;
+		material.specular.s[0] = 1.0; material.specular.s[1] = 1.0; material.specular.s[2] = 1.0;
+		material.shininess = 500.0;
+		material.reflectance = 0.25;
+
+		sphere[cnt].center.s[3] = 1;
+		sphere[cnt].radius = 6;
+		sphere[cnt].mat = material;
+		cnt++;
+	}
+
 
 	g_clBufferMem = clCreateBuffer(g_clContext, CL_MEM_COPY_HOST_PTR, sizeof(buffer), buffer, &errNum); 
 	if(errNum != CL_SUCCESS)
@@ -352,17 +382,38 @@ void renderWorld()
 	float l0_diff[] = {1,0,1,1};
 	float l0_spec[] = {0.05f,0.05f,0.05f,1};
 	
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, scene.surface.mat.ambient.s);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, scene.surface.mat.diffuse.s);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, scene.surface.mat.specular.s);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, scene.surface.mat.emission.s);
-	glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, scene.surface.mat.shininess);
-	
-	g_modelView = glm::translate(g_modelView, glm::vec3(0,0,0));
-	glLoadMatrixf(glm::value_ptr(g_modelView));
-
 	GLUquadric* q = gluNewQuadric();
-	gluSphere(q,1,10,10);
+
+	glDisable(GL_LIGHTING);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);	
+
+	glm::mat4 temp = g_modelView;
+	g_modelView = glm::rotate(g_modelView, 90.0f, glm::vec3(1,0,0));
+	glLoadMatrixf(glm::value_ptr(g_modelView));
+	gluSphere(q,7,8,8);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glEnable(GL_LIGHTING);
+	g_modelView = temp;	
+
+	int cnt = 0;
+	for(int i=0; i<g_game.objects.size(); ++i)
+	{
+		if(g_game.objects[i].isGL)
+		{	
+			glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, Colors[g_game.objects[i].colorIndex]);
+			glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, Colors[g_game.objects[i].colorIndex]);
+			glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, scene.surface.mat.specular.s);
+			glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, scene.surface.mat.emission.s);
+			glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, scene.surface.mat.shininess);
+
+			glm::mat4 temp = g_modelView;
+			g_modelView = glm::translate(g_modelView, glm::vec3(g_game.objects[i].pos[0],g_game.objects[i].pos[1],g_game.objects[i].pos[2]));
+			glLoadMatrixf(glm::value_ptr(g_modelView));
+			gluSphere(q,2,10,10);
+			cnt++;
+			g_modelView = temp;
+		}
+	}			
 }
 
 void renderScene()
@@ -377,11 +428,13 @@ void renderScene()
 	// Setup sky light		
 	float colorBlack[] = {0,0,0,1};
 	float colorWhite[] = {1,1,1,1};
+	float colorGrayLight[] = {0.2,0.2,0.2,1};
 	glEnable(GL_LIGHT0);
 	glLightfv(GL_LIGHT0, GL_DIFFUSE, colorWhite);
-	glLightfv(GL_LIGHT0, GL_AMBIENT, colorWhite);
+	glLightfv(GL_LIGHT0, GL_AMBIENT, colorGrayLight);
 	glLightfv(GL_LIGHT0, GL_SPECULAR, colorWhite);
 	glLightfv(GL_LIGHT0, GL_POSITION, scene.light.pos.s);
+	glLightModelfv(GL_LIGHT_MODEL_AMBIENT, colorBlack);
 
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);			
 	glEnable(GL_LIGHTING);
@@ -412,10 +465,10 @@ void initTexture()
 	for(int i = 0;i<TEXTURE_WIDTH;++i)		
 		for(int j = 0;j<TEXTURE_HEIGHT;++j) {
 			bool isBlack = ((i/span)%2==1) ^ ((j/span)%2==1);
-			pixels[i][j][0] = isBlack?0:255;
-			pixels[i][j][1] = isBlack?0:255;
-			pixels[i][j][2] = isBlack?0:255;
-			pixels[i][j][3] = isBlack?0:255;	
+			pixels[i][j][0] = isBlack?0:255.f;
+			pixels[i][j][1] = isBlack?0:255.f;
+			pixels[i][j][2] = isBlack?0:255.f;
+			pixels[i][j][3] = isBlack?0:255.f;	
 		}
 
 	glBindTexture(GL_TEXTURE_2D, g_texture);
