@@ -4,7 +4,7 @@ uniform sampler2D uTex;
 void main()
 {
 	vec4 sample = texture2D(uTex, gl_TexCoord[0].xy);
-	if(sample.w<0)
+	if(sample.w<0.0)
 		discard;
 	gl_FragColor = vec4(sample.xyz,1);
 

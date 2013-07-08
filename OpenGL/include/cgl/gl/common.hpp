@@ -5,6 +5,7 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#include <time.h>
 
 #define BUFFER_OFFSET(bytes)  ((GLubyte*) NULL + (bytes))
 
@@ -301,6 +302,42 @@ namespace cgl
 				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 			}
 			glBindVertexArray(0);
+		}
+	};
+
+
+	class Timer
+	{
+	protected:
+		// FPS counter
+		const int trailLength;
+		int _curDiff;
+		long _timeDiff[16];
+		long _lastTime;
+
+	public:
+		Timer() : _curDiff(0), _lastTime(0), trailLength(sizeof(_timeDiff)/sizeof(long))
+		{
+		}
+
+		void start()
+		{
+			long temp = clock();
+			_lastTime = temp;
+		}
+
+		void stop()
+		{
+			_timeDiff[_curDiff++] = clock() - _lastTime;			
+			_curDiff = _curDiff % trailLength;		
+		}
+
+		double averageTail() {
+			//return ((double)(_timeDiff[0]+_timeDiff[1]+_timeDiff[2]+_timeDiff[3]+_timeDiff[4])/5);
+			double sum = 0;
+			for(int i=0;i<trailLength;++i)
+				sum += _timeDiff[i];
+			return sum/trailLength;
 		}
 	};
 }
