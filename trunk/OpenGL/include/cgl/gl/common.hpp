@@ -1,3 +1,4 @@
+#pragma once
 #include <stdlib.h>
 #include <string>
 #include <GL/glew.h>
@@ -364,40 +365,40 @@ static void APIENTRY debugOutput
 		bool Error(false);
 
 		if(source == GL_DEBUG_SOURCE_API_ARB)
-			strcpy(debSource, "OpenGL");
+			strcpy_s(debSource, "OpenGL");
 		else if(source == GL_DEBUG_SOURCE_WINDOW_SYSTEM_ARB)
-			strcpy(debSource, "Windows");
+			strcpy_s(debSource, "Windows");
 		else if(source == GL_DEBUG_SOURCE_SHADER_COMPILER_ARB)
-			strcpy(debSource, "Shader Compiler");
+			strcpy_s(debSource, "Shader Compiler");
 		else if(source == GL_DEBUG_SOURCE_THIRD_PARTY_ARB)
-			strcpy(debSource, "Third Party");
+			strcpy_s(debSource, "Third Party");
 		else if(source == GL_DEBUG_SOURCE_APPLICATION_ARB)
-			strcpy(debSource, "Application");
+			strcpy_s(debSource, "Application");
 		else if(source == GL_DEBUG_SOURCE_OTHER_ARB)
-			strcpy(debSource, "Other");
+			strcpy_s(debSource, "Other");
  
 		if(type == GL_DEBUG_TYPE_ERROR_ARB)
-			strcpy(debType, "error");
+			strcpy_s(debType, "error");
 		else if(type == GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR_ARB)
-			strcpy(debType, "deprecated behavior");
+			strcpy_s(debType, "deprecated behavior");
 		else if(type == GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR_ARB)
-			strcpy(debType, "undefined behavior");
+			strcpy_s(debType, "undefined behavior");
 		else if(type == GL_DEBUG_TYPE_PORTABILITY_ARB)
-			strcpy(debType, "portability");
+			strcpy_s(debType, "portability");
 		else if(type == GL_DEBUG_TYPE_PERFORMANCE_ARB)
-			strcpy(debType, "performance");
+			strcpy_s(debType, "performance");
 		else if(type == GL_DEBUG_TYPE_OTHER_ARB)
-			strcpy(debType, "message");
+			strcpy_s(debType, "message");
  
 		if(severity == GL_DEBUG_SEVERITY_HIGH_ARB)
 		{
-			strcpy(debSev, "high");
+			strcpy_s(debSev, "high");
 			Error = true;
 		}
 		else if(severity == GL_DEBUG_SEVERITY_MEDIUM_ARB)
-			strcpy(debSev, "medium");
+			strcpy_s(debSev, "medium");
 		else if(severity == GL_DEBUG_SEVERITY_LOW_ARB)
-			strcpy(debSev, "low");
+			strcpy_s(debSev, "low");
 
 			fprintf(stderr,"%s: %s(%s) %d: %s\n", debSource, debType, debSev, id, message);
 			assert(!Error);
