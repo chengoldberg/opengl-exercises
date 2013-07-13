@@ -29,7 +29,8 @@
 
 #include "cgl/gl/common.hpp"
 #include "cgl/gl/asset_library.hpp"
-
+#include "cgl/gl/collada_importer.hpp"
+	
 struct Uniforms
 {
 	GLuint modelViewMatrix;
@@ -78,7 +79,12 @@ public:
 
 	virtual void visit(cgl::ssg::GeomertyInstanceNode* mesh)
 	{		
-		mesh->getMesh()->render();
+		cgl::SimpleMesh* simpleMesh = mesh->getMesh();
+		std::vector<GLuint> attribLocs;
+		attribLocs.push_back(g_attribs.position);
+		attribLocs.push_back(g_attribs.color);
+		simpleMesh->setAttribLocs(attribLocs);
+		simpleMesh->render();
 	}
 
 protected:
@@ -199,6 +205,26 @@ void initShaders()
 	g_attribs.color = glGetAttribLocation(g_program.getId(), "aColor");
 }
 
+void initAssetsFromCOLLADA()
+{
+	cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_simple.dae", assetLibrary);
+	{
+		// Build scene graph
+		cgl::ssg::SceneGraphRoot* root = new cgl::ssg::SceneGraphRoot();
+		cgl::ssg::TransformationNode* cameraTransformNode = new cgl::ssg::TransformationNode(glm::translate(glm::mat4(1), glm::vec3(0,0.5,0)));
+		cgl::ssg::CameraInstanceNode* cameraNode = new cgl::ssg::CameraInstanceNode(assetLibrary.getCamera("Camera-camera"),"test-camera-instance");
+		cameraTransformNode->addChild(cameraNode);
+		root->addChild(cameraTransformNode);
+
+		cgl::ssg::TransformationNode* meshTransformNode = new cgl::ssg::TransformationNode(glm::translate(glm::mat4(1), glm::vec3(0,0,-5)));
+		cgl::ssg::GeomertyInstanceNode* meshNode = new cgl::ssg::GeomertyInstanceNode(assetLibrary.getMesh("Cube-mesh"));
+		meshTransformNode->addChild(meshNode);
+		root->addChild(meshTransformNode);
+
+		assetLibrary.storeScene("test-scene", root);
+	}
+}
+
 void initAssets()
 {	
 	// Build library
@@ -235,7 +261,8 @@ void init()
 	initShaders();
 
 	// Init assets
-	initAssets();
+	//initAssets();
+	initAssetsFromCOLLADA();
 
 	// Set background color to gray
 	glClearColor(0.5f, 0.5f, 0.5f, 0);

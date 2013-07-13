@@ -127,7 +127,15 @@ namespace cgl
 			return _scenes[id];
 		}
 
+		cgl::SimpleMesh* storeMesh(std::string id, cgl::SimpleMesh* mesh)
+		{
+			_meshes[id] = mesh;
+			return _meshes[id];
+		}
+
 		ssg::SceneGraphRoot* getScene(std::string id) { return _scenes[id]; };
+		cgl::Camera* getCamera(std::string id) { return _cameras[id]; };
+		cgl::SimpleMesh* getMesh(std::string id) { return _meshes[id]; };
 	};
 
 }
