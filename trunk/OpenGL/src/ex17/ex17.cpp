@@ -31,19 +31,7 @@
 #include "cgl/gl/asset_library.hpp"
 #include "cgl/gl/collada_importer.hpp"
 	
-struct Uniforms
-{
-	GLuint modelViewMatrix;
-	GLuint projectionMatrix;
-} g_unifroms;
 
-struct Attribs
-{
-	GLuint position;
-	GLuint color;
-} g_attribs;
-
-cgl::Program g_program;
 int	g_height, g_width;
 
 cgl::AssetLibrary assetLibrary;
@@ -56,39 +44,46 @@ public:
 	{
 		_modelView = cameraTransformation;
 		_projection = camera->getMatrix();
+		_currentEffect = NULL;
 	}
 
 	virtual void visit(cgl::ssg::SceneGraphRoot* scene)
-	{
-		g_program.use();
-		scene->acceptChildren(this);
-		g_program.useDefault();
+	{				
+		scene->acceptChildren(this);		
 	}
 
 	virtual void visit(cgl::ssg::TransformationNode* transformation)
 	{
 		glm::mat4 temp = _modelView;
-
 		_modelView *= transformation->getMatrix();
-		glProgramUniformMatrix4fv(g_program.getId(), g_unifroms.modelViewMatrix, 1, false, glm::value_ptr(_modelView));
-		glProgramUniformMatrix4fv(g_program.getId(), g_unifroms.projectionMatrix, 1, false, glm::value_ptr(_projection));	
 		transformation->acceptChildren(this);
-
 		_modelView = temp;
+	}
+
+	virtual void visit(cgl::ssg::EffectInstanceNode* effectNode)
+	{
+		cgl::Effect* temp = _currentEffect;
+		_currentEffect = effectNode->getEffect();
+		_currentEffect->applyEffect();
+		effectNode->acceptChildren(this);		
+
+		// Apply previous effect
+		_currentEffect = temp;
+		if(_currentEffect != NULL)
+			_currentEffect->applyEffect();
 	}
 
 	virtual void visit(cgl::ssg::GeomertyInstanceNode* mesh)
 	{		
+		_currentEffect->updateEnvUniforms(_modelView, _projection);
 		cgl::SimpleMesh* simpleMesh = mesh->getMesh();
-		std::vector<GLuint> attribLocs;
-		attribLocs.push_back(g_attribs.position);
-		attribLocs.push_back(g_attribs.color);
-		simpleMesh->setAttribLocs(attribLocs);
+		simpleMesh->setAttribLocs(_currentEffect->getAttribLocs());
 		simpleMesh->render();
 	}
 
 protected:
 	glm::mat4 _modelView, _projection;
+	cgl::Effect* _currentEffect;
 };
 
 class FindCameraVisitor : public cgl::ssg::IVisitor
@@ -101,6 +96,8 @@ protected:
 
 public:
 	FindCameraVisitor(std::string queriedId) : _queriedId(queriedId), _foundCamera(NULL) {};
+
+	bool isCameraFound() { return _foundCamera != NULL; };
 
 	cgl::Camera* getCamera() 
 	{
@@ -130,105 +127,38 @@ public:
 	}
 };
 
-cgl::SimpleMesh* loadRGBCube()
-{
-	cgl::SimpleMesh* RGBCube = new cgl::SimpleMesh();
-
-	float vertices[][3] = {
-		{-1,-1,-1}, //0
-		{-1,-1,+1}, //1
-		{-1,+1,-1}, //2
-		{-1,+1,+1}, //3
-		{+1,-1,-1}, //4
-		{+1,-1,+1}, //5
-		{+1,+1,-1}, //6
-		{+1,+1,+1}};//7
-
-	float colors[][3] = {
-		{0,0,0}, //0
-		{0,0,1}, //1
-		{0,1,0}, //2
-		{0,1,1}, //3
-		{1,0,0}, //4
-		{1,0,1}, //5
-		{1,1,0}, //6
-		{1,1,1}};//7
-	
-	GLuint faces[] = {
-		0,4,5,1,
-		0,1,3,2,
-		0,2,6,4,
-		7,6,2,3,
-		7,5,4,6,
-		7,3,1,5};
-
-	std::vector<GLuint> facesVec;
-	facesVec.assign(faces, faces+sizeof(faces)/sizeof(GLuint));
-	RGBCube->init(facesVec);
-	RGBCube->
-		addAttrib("position", 3, vertices, sizeof(vertices))->
-		addAttrib("color", 3, colors, sizeof(colors));
-	
-	std::vector<GLuint> attribLocs;
-	attribLocs.push_back(g_attribs.position);
-	attribLocs.push_back(g_attribs.color);
-	RGBCube->setAttribLocs(attribLocs);
-
-	// Must do it here because using local buffers 
-	RGBCube->initBuffers();
-
-	return RGBCube;
-}
-
 void drawScene()
 {
+	//cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("Scene");
 	cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("test-scene");
-
+	
+	//FindCameraVisitor query("Camera");
 	FindCameraVisitor query("test-camera-instance");
-	scene->accept(&query);
 
+	scene->accept(&query);
+	if(!query.isCameraFound())
+		throw std::exception("Camera not found!");
 	GLRendererVisitor renderer(query.getCamera(), query.getCameraTransformation());
 	scene->accept(&renderer);
 }
 
-void initShaders() 
-{
-	std::vector<cgl::Shader> shaders;
-	shaders.push_back(cgl::Shader::fromFile(GL_VERTEX_SHADER,"../res/shader/fixed_function_simple.vert"));		
-	shaders.push_back(cgl::Shader::fromFile(GL_FRAGMENT_SHADER,"../res/shader/fixed_function_simple.frag"));		
-	g_program.build(shaders);	
-
-	g_unifroms.modelViewMatrix = glGetUniformLocation(g_program.getId(), "uModelViewMatrix");
-	g_unifroms.projectionMatrix = glGetUniformLocation(g_program.getId(), "uProjectionMatrix");	
-
-	g_attribs.position = glGetAttribLocation(g_program.getId(), "aPosition");
-	g_attribs.color = glGetAttribLocation(g_program.getId(), "aColor");
-}
-
 void initAssetsFromCOLLADA()
 {
-	cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_simple.dae", assetLibrary);
-	{
-		// Build scene graph
-		cgl::ssg::SceneGraphRoot* root = new cgl::ssg::SceneGraphRoot();
-		cgl::ssg::TransformationNode* cameraTransformNode = new cgl::ssg::TransformationNode(glm::translate(glm::mat4(1), glm::vec3(0,0.5,0)));
-		cgl::ssg::CameraInstanceNode* cameraNode = new cgl::ssg::CameraInstanceNode(assetLibrary.getCamera("Camera-camera"),"test-camera-instance");
-		cameraTransformNode->addChild(cameraNode);
-		root->addChild(cameraTransformNode);
-
-		cgl::ssg::TransformationNode* meshTransformNode = new cgl::ssg::TransformationNode(glm::translate(glm::mat4(1), glm::vec3(0,0,-5)));
-		cgl::ssg::GeomertyInstanceNode* meshNode = new cgl::ssg::GeomertyInstanceNode(assetLibrary.getMesh("Cube-mesh"));
-		meshTransformNode->addChild(meshNode);
-		root->addChild(meshTransformNode);
-
-		assetLibrary.storeScene("test-scene", root);
-	}
+	cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_simple9.dae", assetLibrary);
+	//cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_simple_tex3.dae", assetLibrary);
+	//cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("Scene");
+	//scene->accept(&ScenePrettyPrinter());
 }
 
 void initAssets()
 {	
 	// Build library
 	cgl::Camera* camera = assetLibrary.storeCamera("test-camera", new cgl::Camera(glm::perspective(60.0f,1.0f,1.0f,100.0f)));
+
+	cgl::CommonEffect* effect = new cgl::CommonEffect();
+	effect->init();
+
+	assetLibrary.storeEffect("effect", effect);
 
 	// Build scene graph
 	cgl::ssg::SceneGraphRoot* root = new cgl::ssg::SceneGraphRoot();
@@ -238,11 +168,14 @@ void initAssets()
 	root->addChild(cameraTransformNode);
 
 	cgl::ssg::TransformationNode* meshTransformNode = new cgl::ssg::TransformationNode(glm::translate(glm::mat4(1), glm::vec3(0,0,-5)));
-	cgl::ssg::GeomertyInstanceNode* meshNode = new cgl::ssg::GeomertyInstanceNode(loadRGBCube());
-	meshTransformNode->addChild(meshNode);
-	root->addChild(meshTransformNode);
+	cgl::ssg::GeomertyInstanceNode* meshNode = new cgl::ssg::GeomertyInstanceNode(assetLibrary.getMesh("Suzanne-mesh"));
+	cgl::ssg::EffectInstanceNode* effectNode = new cgl::ssg::EffectInstanceNode(assetLibrary.getEffect("effect"));	
+	effectNode->addChild(meshNode);
+	meshTransformNode->addChild(effectNode);
+	root->addChild(meshTransformNode);	
 
 	assetLibrary.storeScene("test-scene", root);
+	root->accept(&ScenePrettyPrinter());
 }
 
 void initDebug()
@@ -257,12 +190,9 @@ void init()
 	// Init GL Debug
 	initDebug();
 
-	// Init shaders
-	initShaders();
-
 	// Init assets
-	//initAssets();
 	initAssetsFromCOLLADA();
+	initAssets();	
 
 	// Set background color to gray
 	glClearColor(0.5f, 0.5f, 0.5f, 0);
@@ -286,6 +216,7 @@ void reshape(int width, int height)
 {
 	g_width = width;
 	g_height = height;
+	glViewport(0,0,width,height);
 }
 
 
