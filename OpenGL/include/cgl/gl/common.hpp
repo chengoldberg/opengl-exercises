@@ -4,6 +4,7 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #include <vector>
+#include <map>
 #include <iostream>
 #include <fstream>
 #include <time.h>
@@ -193,6 +194,7 @@ namespace cgl
 		GLuint _drawMode;
 		GLuint _vao;
 
+		static const unsigned int INVALID_ATTRIB_LOC = 9999;
 	public:
 		SimpleMesh() : _isInitBuffers(false), _elementsPerFace(3), _drawMode(GL_TRIANGLES)
 		{
@@ -225,6 +227,18 @@ namespace cgl
 			return this;
 		}
 
+		// TODO: when changing attribLocs, need to re-init VAO
+		void setAttribLocs(std::map<std::string, GLuint> dict)
+		{
+			_attribLocs.resize(_attribs.size());
+			for(unsigned int i=0; i<_attribs.size(); ++i)
+			{
+				if(dict.count(_attribs[i].name))
+					_attribLocs[i] = dict[_attribs[i].name];
+				else
+					_attribLocs[i] = INVALID_ATTRIB_LOC;
+			}
+		}
 		void setAttribLocs(std::vector<GLuint> val) { _attribLocs = val;}
 		void setDrawMode(GLuint val) { _drawMode = val;}
 
@@ -271,6 +285,8 @@ namespace cgl
 
 			for(unsigned int i=0; i<_attribs.size(); ++i)
 			{
+				if(_attribLocs[i] == INVALID_ATTRIB_LOC)
+					continue;
 				Attrib& attrib = _attribs[i];
 				glBindBuffer(GL_ARRAY_BUFFER, attrib.hostBufferId);
 				glEnableVertexAttribArray(_attribLocs[i]);

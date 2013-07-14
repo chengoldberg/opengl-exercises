@@ -5,6 +5,7 @@
 #include <map>
 #include <string>
 #include <sstream>
+#include <stack>
 
 #include "glm/glm.hpp"
 #include <glm/gtc/matrix_transform.hpp>
@@ -30,7 +31,7 @@ namespace cgl
 				projectionNode->FirstChildElement("aspect_ratio")->QueryFloatText(&aspect_ratio);
 				projectionNode->FirstChildElement("znear")->QueryFloatText(&znear);
 				projectionNode->FirstChildElement("zfar")->QueryFloatText(&zfar);
-				aspect_ratio = 1;// TODO
+				//aspect_ratio = 1;// TODO
 				assetLibrary.storeCamera(id, new cgl::Camera(glm::perspective(xfov, aspect_ratio, znear, zfar)));
 			}
 			else if(projectionNode = commonProjectionNode->FirstChildElement("orthographic"))
@@ -151,8 +152,7 @@ namespace cgl
 
 	void parseGeometries(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* base)
 	{
-		std::map<std::string, COLLADASource> sources;
-		std::vector<COLLADAPolylistInput> inputs;
+		std::map<std::string, COLLADASource> sources;		
 
 		for(tinyxml2::XMLElement* geometryNode = base->FirstChildElement("geometry"); 
 			geometryNode; 
@@ -165,6 +165,7 @@ namespace cgl
 			parseMeshSources(assetLibrary, meshNode, sources);
 		
 			// Extract attribute semantics and faces
+			std::vector<COLLADAPolylistInput> inputs;
 			tinyxml2::XMLElement* polygonsNode = meshNode->FirstChildElement("polylist");
 			parseMeshPolylist(assetLibrary, polygonsNode, sources, inputs);
 
@@ -183,73 +184,128 @@ namespace cgl
 
 	class COLLADAXMLVisitor : public tinyxml2::XMLVisitor
 	{
+	protected:
+		cgl::AssetLibrary _assetLibrary;
+		cgl::ssg::SceneGraphRoot* _root;
+		cgl::ssg::GroupNode* _curNode;
+		std::stack<cgl::ssg::GroupNode*> _nodeStack;
+		std::stack<std::string> _nodeIdStack;
 	public:
 		std::map<std::string, int> _names;
 		enum 
 		{
-			LIBRARY_CAMERAS,
+			INVALID,
+			NODE,
+			MATRIX,
+			INSTANCE_CAMERA,
+			INSTANCE_GEOMETRY,
 		};
 
-		COLLADAXMLVisitor()
+		COLLADAXMLVisitor(cgl::AssetLibrary assetLibrary) : _assetLibrary(assetLibrary)
 		{
-			_names["library_cameras"] = LIBRARY_CAMERAS;
+			_root = new cgl::ssg::SceneGraphRoot();
+			_curNode = _root;
+			_names["node"] = NODE;
+			_names["matrix"] = MATRIX;
+			_names["instance_camera"] = INSTANCE_CAMERA;
+			_names["instance_geometry"] = INSTANCE_GEOMETRY;
 		}
 
+		cgl::ssg::SceneGraphRoot* getSceneGraphRoot() const { return _root; };
 		int getElementNameId(const char* name)
 		{
 			return _names[name];
-		}
-
-	   /// Visit a document.
-		virtual bool VisitEnter( const tinyxml2::XMLDocument& doc )			{
-			return true;
-		}
-		/// Visit a document.
-		virtual bool VisitExit( const tinyxml2::XMLDocument& doc )			{
-			return true;
 		}
 
 		/// Visit an element.
 		virtual bool VisitEnter( const tinyxml2::XMLElement& element, const tinyxml2::XMLAttribute* firstAttribute )	{
 			switch(getElementNameId(element.Name()))
 			{
-			case LIBRARY_CAMERAS:
+			case NODE:
+				{
+					_nodeStack.push(_curNode);
+					_nodeIdStack.push(element.Attribute("id"));
+				}
+				break;
+
+			case MATRIX:
+				{
+					float data[16];
+					{
+						
+						std::stringstream ss(element.GetText());
+						for(int i=0; i<16; ++i)
+						{
+							ss >> data[i];
+						}
+					}
+					//TODO: is COLLADA column or row major?!
+					cgl::ssg::TransformationNode* transformNode = new cgl::ssg::TransformationNode(glm::transpose(glm::make_mat4(data)));
+					_curNode->addChild(transformNode);
+					_curNode = transformNode;
+				}
+				break;
+
+			case INSTANCE_CAMERA:
+				{
+					cgl::Camera* camera = _assetLibrary.getCamera(element.Attribute("url")+1);
+					cgl::ssg::CameraInstanceNode* cameraNode = new cgl::ssg::CameraInstanceNode(camera, _nodeIdStack.top());
+					_curNode->addChild(cameraNode);
+				}
+				break;
+
+			case INSTANCE_GEOMETRY:
+				{
+					cgl::SimpleMesh* simpleMesh = _assetLibrary.getMesh(element.Attribute("url")+1);
+					cgl::ssg::GeomertyInstanceNode* meshNode = new cgl::ssg::GeomertyInstanceNode(simpleMesh/*, _nodeIdStack.top()*/);
+					_curNode->addChild(meshNode);
+				}
 				break;
 			}
-			return true;
-		}
-		/// Visit an element.
-		virtual bool VisitExit( const tinyxml2::XMLElement& element )			{
+
 			return true;
 		}
 
-		/// Visit a declaration.
-		virtual bool Visit( const tinyxml2::XMLDeclaration& declaration )		{
-			return true;
-		}
-		/// Visit a text node.
-		virtual bool Visit( const tinyxml2::XMLText& text )					{
-			return true;
-		}
-		/// Visit a comment node.
-		virtual bool Visit( const tinyxml2::XMLComment& comment )				{
-			return true;
-		}
-		/// Visit an unknown node.
-		virtual bool Visit( const tinyxml2::XMLUnknown& unknown )				{
+		/// Visit an element.
+		virtual bool VisitExit( const tinyxml2::XMLElement& element )			{
+			switch(getElementNameId(element.Name()))
+			{
+			case NODE:
+				{
+					_curNode = _nodeStack.top();
+					_nodeStack.pop();
+					_nodeIdStack.pop();
+				}
+				break;
+			}
+
 			return true;
 		}
 	};
 
+	void parseVisualScenes(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* base)
+	{
+		for(tinyxml2::XMLElement* visualSceneNode = base->FirstChildElement("visual_scene"); 
+			visualSceneNode; 
+			visualSceneNode = visualSceneNode->NextSiblingElement("visual_scene"))
+		{
+			std::string id = visualSceneNode->Attribute("id");
+
+			COLLADAXMLVisitor visitor(assetLibrary);
+			visualSceneNode->Accept(&visitor);
+			assetLibrary.storeScene(id, visitor.getSceneGraphRoot());
+		}
+	}
+
 	void importCollada(std::string filename, AssetLibrary& assetLibrary)
 	{
 		tinyxml2::XMLDocument doc;
-		doc.LoadFile(filename.c_str());
-		COLLADAXMLVisitor visitor;
-		//doc.Accept(&visitor);
+		doc.LoadFile(filename.c_str());		
 
 		tinyxml2::XMLElement* root = doc.FirstChildElement("COLLADA");
+
 		parseCameras(assetLibrary, root->FirstChildElement("library_cameras"));
 		parseGeometries(assetLibrary, root->FirstChildElement("library_geometries"));
+		parseVisualScenes(assetLibrary, root->FirstChildElement("library_visual_scenes"));
 	}
-}
+};

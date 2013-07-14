@@ -23,6 +23,74 @@ namespace cgl
 		glm::mat4 _matrix;		
 	};
 
+	class Image
+	{
+	};
+
+	class Texture
+	{
+
+	};
+
+	class Effect
+	{
+	public:
+		virtual void updateEnvUniforms(glm::mat4& modelView, glm::mat4& projection) = 0;
+		virtual std::map<std::string, GLuint> getAttribLocs() = 0;
+		virtual void applyEffect() = 0;
+	protected:
+		
+	};
+
+	class CommonEffect : public Effect
+	{
+	public:
+		void init()
+		{
+			std::vector<cgl::Shader> shaders;
+			shaders.push_back(cgl::Shader::fromFile(GL_VERTEX_SHADER,"../res/shader/fixed_function_simple.vert"));		
+			shaders.push_back(cgl::Shader::fromFile(GL_FRAGMENT_SHADER,"../res/shader/fixed_function_simple.frag"));		
+			_program.build(shaders);	
+
+			// Get common environment unifrom locations
+			_unifroms.modelViewMatrix = glGetUniformLocation(_program.getId(), "uModelViewMatrix");
+			_unifroms.projectionMatrix = glGetUniformLocation(_program.getId(), "uProjectionMatrix");	
+			_attribs["VERTEX"] = glGetAttribLocation(_program.getId(), "aPosition");
+			_attribs["NORMAL"] = glGetAttribLocation(_program.getId(), "aColor");
+		}
+
+		void applyEffect()
+		{
+			_program.use();
+		}
+
+		void updateEnvUniforms(glm::mat4& modelView, glm::mat4& projection)
+		{
+			glProgramUniformMatrix4fv(_program.getId(), _unifroms.modelViewMatrix, 1, false, glm::value_ptr(modelView));
+			glProgramUniformMatrix4fv(_program.getId(), _unifroms.projectionMatrix, 1, false, glm::value_ptr(projection));	
+		}
+
+		std::map<std::string, GLuint> getAttribLocs()
+		{
+			return _attribs;
+		}
+
+	protected:
+
+		struct Uniforms
+		{
+			GLuint modelViewMatrix;
+			GLuint projectionMatrix;
+		} _unifroms;
+
+		std::map<std::string, GLuint> _attribs;
+		cgl::Program _program;
+		cgl::Texture _diffuseTexture;
+		glm::vec4 _diffuseColor;
+		glm::vec4 _ambientColor;
+		glm::vec4 _specularColor;
+	};
+
 	// Simple-Scene-Graph
 	namespace ssg
 	{
@@ -68,6 +136,16 @@ namespace cgl
 			glm::mat4 _matrix;
 		};
 
+		class EffectInstanceNode : public GroupNode
+		{
+		public:
+			EffectInstanceNode(cgl::Effect* effect) : _effect(effect) {};
+			cgl::Effect* getEffect() const { return _effect; };
+			virtual void accept(IVisitor *visitor);
+		protected:
+			cgl::Effect* _effect;
+		};
+
 		class GeomertyInstanceNode : public Node 
 		{
 		public:
@@ -104,6 +182,7 @@ namespace cgl
 			virtual void visit(SceneGraphRoot* node){node->acceptChildren(this);};
 			virtual void visit(GeomertyInstanceNode*){};
 			virtual void visit(CameraInstanceNode*){};
+			virtual void visit(EffectInstanceNode* node){node->acceptChildren(this);};
 		};
 	}
 
@@ -113,6 +192,7 @@ namespace cgl
 		std::map<std::string, cgl::Camera*> _cameras;
 		std::map<std::string, cgl::SimpleMesh*> _meshes;
 		std::map<std::string, ssg::SceneGraphRoot*> _scenes;
+		std::map<std::string, cgl::Effect*> _effects;
 	public:
 
 		Camera* storeCamera(std::string id, cgl::Camera* camera) 
@@ -133,9 +213,16 @@ namespace cgl
 			return _meshes[id];
 		}
 
+		cgl::Effect* storeEffect(std::string id, cgl::Effect* effect)
+		{
+			_effects[id] = effect;
+			return _effects[id];
+		}	
+
 		ssg::SceneGraphRoot* getScene(std::string id) { return _scenes[id]; };
 		cgl::Camera* getCamera(std::string id) { return _cameras[id]; };
 		cgl::SimpleMesh* getMesh(std::string id) { return _meshes[id]; };
+		cgl::Effect* getEffect(std::string id) { return _effects[id]; };
 	};
 
 }
@@ -144,6 +231,7 @@ void cgl::ssg::SceneGraphRoot::accept(IVisitor *visitor){ visitor->visit(this); 
 void cgl::ssg::CameraInstanceNode::accept(IVisitor *visitor){ visitor->visit(this); }
 void cgl::ssg::GeomertyInstanceNode::accept(IVisitor *visitor){ visitor->visit(this); }
 void cgl::ssg::TransformationNode::accept(IVisitor *visitor){ visitor->visit(this); }
+void cgl::ssg::EffectInstanceNode::accept(IVisitor *visitor){ visitor->visit(this); }
 
 void cgl::ssg::GroupNode::acceptChildren(IVisitor *visitor)
 {
@@ -154,5 +242,60 @@ void cgl::ssg::GroupNode::acceptChildren(IVisitor *visitor)
 	}
 }
 
+class ScenePrettyPrinter : public cgl::ssg::IVisitor
+{
+protected:
+	int _indent;
+public:
 
+	ScenePrettyPrinter() : _indent(0)
+	{
+	}
 
+	void applyIndent()
+	{
+		for(int i=0; i<_indent*4;++i)
+		{
+			std::cout << " ";
+		}
+	}
+
+	virtual void visit(cgl::ssg::SceneGraphRoot* scene)
+	{
+		applyIndent();
+		std::cout << "Scene root" << std::endl;
+		_indent++;
+		scene->acceptChildren(this);
+		_indent--;
+	}
+
+	virtual void visit(cgl::ssg::TransformationNode* transformation)
+	{
+		applyIndent();
+		std::cout << "Transformation node " << std::endl;
+		_indent++;
+		transformation->acceptChildren(this);
+		_indent--;
+	}
+
+	virtual void visit(cgl::ssg::GeomertyInstanceNode* mesh)
+	{		
+		applyIndent();
+		std::cout << "Geomerty Instance Node" << std::endl;
+	}
+
+	virtual void visit(cgl::ssg::EffectInstanceNode* effect)
+	{		
+		applyIndent();
+		std::cout << "Effect Instance Node" << std::endl;
+		_indent++;
+		effect->acceptChildren(this);
+		_indent--;
+	}
+
+	virtual void visit(cgl::ssg::CameraInstanceNode* camera)
+	{
+		applyIndent();
+		std::cout << "Camera Instance Node" << std::endl;
+	}
+};
