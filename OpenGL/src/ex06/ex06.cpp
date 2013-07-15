@@ -324,6 +324,9 @@ void init() {
 	g_curTextureMinFilter = 0;
 
 	glEnable(GL_NORMALIZE);
+
+	// The data we use doesn't have any special alignment 
+	// must specify if we deal with non-4 sizes, e.g. RGB (default state value is 4!)
 	glPixelStorei(GL_UNPACK_ALIGNMENT,1);
 
 	// Generate 3 texture object IDs

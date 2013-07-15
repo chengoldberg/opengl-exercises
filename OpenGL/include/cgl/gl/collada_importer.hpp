@@ -8,14 +8,27 @@
 #include <stack>
 
 #include "glm/glm.hpp"
+#include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include "asset_library.hpp"
 
 #include "tinyxml2\tinyxml2.h"
 #include "tinyxml2\tinyxml2.cpp"
 
+void parseFloatArray(const char* line, int count, float* data)
+{
+	std::stringstream ss(line);
+	for(int i=0; i<count; ++i)
+	{
+		ss >> data[i];
+	}		
+}
+
 namespace cgl
 {
+	std::map<std::string, std::string> materialToEffectMap;
+	std::string _pathbase;
+
 	void parseCameras(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* base)
 	{
 		tinyxml2::XMLElement* cameraNode = base->FirstChildElement();
@@ -62,8 +75,8 @@ namespace cgl
 			for(int i=0; i<count; ++i)
 			{
 				ss >> _data[i];
-			}
-			_elementSize = 3; //TODO!
+			}			
+			_elementSize = base->FirstChildElement("technique_common")->FirstChildElement("accessor")->IntAttribute("stride");
 		}
 
 		void dereference(std::vector<int> indices, std::vector<float>& result)	
@@ -256,9 +269,23 @@ namespace cgl
 
 			case INSTANCE_GEOMETRY:
 				{
+					if(element.FirstChildElement("bind_material"))
+					{
+						// Note that we currently only support a single material per mesh, so
+						// there is no need to "bind material symbols".
+
+						std::string materialId = element.FirstChildElement("bind_material")->FirstChildElement("technique_common")->FirstChildElement("instance_material")->Attribute("target")+1;
+						std::string effectId = materialToEffectMap[materialId];
+						cgl::Effect* effect = _assetLibrary.getEffect(effectId);
+						cgl::ssg::EffectInstanceNode* effectInstance = new cgl::ssg::EffectInstanceNode(effect);
+						_curNode->addChild(effectInstance);
+						_curNode = effectInstance;
+					}
+
 					cgl::SimpleMesh* simpleMesh = _assetLibrary.getMesh(element.Attribute("url")+1);
 					cgl::ssg::GeomertyInstanceNode* meshNode = new cgl::ssg::GeomertyInstanceNode(simpleMesh/*, _nodeIdStack.top()*/);
 					_curNode->addChild(meshNode);
+					return false;
 				}
 				break;
 			}
@@ -297,15 +324,139 @@ namespace cgl
 		}
 	}
 
-	void importCollada(std::string filename, AssetLibrary& assetLibrary)
+	typedef enum
 	{
+		FOUND_COLOR,
+		FOUND_TEXTURE
+	} EColorOrTexture;
+
+	EColorOrTexture parseColorOrTexture(tinyxml2::XMLElement* node, glm::vec4* color, std::string* textureName)
+	{
+		if(tinyxml2::XMLElement* colorNode = node->FirstChildElement("color"))
+		{
+			float buffer[4];
+			parseFloatArray(colorNode->GetText(), 4, buffer);
+			*color = glm::make_vec4(buffer);
+			return EColorOrTexture::FOUND_COLOR;
+		} 
+		else if(tinyxml2::XMLElement* textureNode = node->FirstChildElement("texture"))
+		{
+			*textureName = textureNode->Attribute("texture");
+			return EColorOrTexture::FOUND_TEXTURE;
+		}
+		throw std::exception("Didn't find either color nor texture!");
+	}
+
+	cgl::Effect* parsePhongEffect(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* phong, std::map<std::string, cgl::Texture*>& samplers)
+	{
+		cgl::CommonEffect* effect = new cgl::CommonEffect();
+		std::string textureName;
+		glm::vec4 color;
+
+		if(parseColorOrTexture(phong->FirstChildElement("emission"), &color, &textureName) == FOUND_COLOR)
+			effect->setEmissionColor(color);
+		if(parseColorOrTexture(phong->FirstChildElement("ambient"), &color, &textureName) == FOUND_COLOR)
+			effect->setAmbientColor(color);
+		if(parseColorOrTexture(phong->FirstChildElement("diffuse"), &color, &textureName) == FOUND_COLOR)
+		{
+			effect->setDiffuseColor(color);
+		}
+		else
+		{
+			effect->setDiffuseTexture(samplers[textureName]);
+		}
+		if(parseColorOrTexture(phong->FirstChildElement("specular"), &color, &textureName) == FOUND_COLOR)
+			effect->setSpecularColor(color);
+		effect->setShininess((float)std::atof(phong->FirstChildElement("shininess")->FirstChildElement("float")->GetText()));
+
+		return effect;
+	}
+
+	void parseEffects(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* base)
+	{
+		for(tinyxml2::XMLElement* effectNode = base->FirstChildElement("effect"); 
+			effectNode; 
+			effectNode = effectNode->NextSiblingElement("effect"))
+		{
+			std::string id = effectNode->Attribute("id");
+
+			tinyxml2::XMLElement* commonProfileNode = effectNode->FirstChildElement("profile_COMMON");
+			// In our case, the Texture object contains both surface and sampler
+			std::map<std::string, cgl::Texture*> surfaces;
+			std::map<std::string, cgl::Texture*> samplers;
+			for(tinyxml2::XMLElement* newparamNode = commonProfileNode->FirstChildElement("newparam"); 
+				newparamNode; 
+				newparamNode = newparamNode->NextSiblingElement("newparam"))
+			{
+				std::string newparamId = newparamNode->Attribute("sid");
+
+				if(tinyxml2::XMLElement* surfaceNode = newparamNode->FirstChildElement("surface"))
+				{
+					Texture2D* tex2d = new Texture2D();
+					std::string imageId = surfaceNode->FirstChildElement("init_from")->GetText();
+					tex2d->initFrom(assetLibrary.getImage(imageId));
+					surfaces[newparamId] = tex2d;
+				}
+				else if(tinyxml2::XMLElement* samplerNode = newparamNode->FirstChildElement("sampler2D"))
+				{
+					samplers[newparamId] = surfaces[samplerNode->FirstChildElement("source")->GetText()];
+				}
+			}
+
+			tinyxml2::XMLElement* phong = commonProfileNode->FirstChildElement("technique")->FirstChildElement("phong");
+			cgl::Effect* effect = parsePhongEffect(assetLibrary, phong, samplers);
+			assetLibrary.storeEffect(id, effect);
+		}
+	}
+
+	void parseMaterials(tinyxml2::XMLElement* base)
+	{
+		for(tinyxml2::XMLElement* materialNode = base->FirstChildElement("material"); 
+			materialNode; 
+			materialNode = materialNode->NextSiblingElement("material"))
+		{
+			std::string id = materialNode->Attribute("id");
+			materialToEffectMap[id] = materialNode->FirstChildElement("instance_effect")->Attribute("url")+1;
+		}
+	}
+
+	void parseImages(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* base)
+	{
+		for(tinyxml2::XMLElement* imageNode = base->FirstChildElement("image"); 
+			imageNode; 
+			imageNode = imageNode->NextSiblingElement("visual_scene"))
+		{
+			std::string id = imageNode->Attribute("id");
+			std::string imagePath;
+			try
+			{
+				// Expecting relative path
+				std::string imageFilename = imageNode->FirstChildElement("init_from")->GetText();
+				imagePath = _pathbase + imageFilename;
+			}
+			catch(...)
+			{
+				throw std::exception("failed to parse image asset");
+			}
+
+			cgl::Image* image = new cgl::Image(imagePath);
+			assetLibrary.store(id, image);
+		}
+	}
+	
+	void importCollada(std::string filename, AssetLibrary& assetLibrary)
+	{		
 		tinyxml2::XMLDocument doc;
 		doc.LoadFile(filename.c_str());		
 
+		_pathbase = filename.substr(0,1+filename.find_last_of("/"));
 		tinyxml2::XMLElement* root = doc.FirstChildElement("COLLADA");
 
 		parseCameras(assetLibrary, root->FirstChildElement("library_cameras"));
 		parseGeometries(assetLibrary, root->FirstChildElement("library_geometries"));
-		parseVisualScenes(assetLibrary, root->FirstChildElement("library_visual_scenes"));
+		parseImages(assetLibrary, root->FirstChildElement("library_images"));
+		parseEffects(assetLibrary, root->FirstChildElement("library_effects"));
+		parseMaterials(root->FirstChildElement("library_materials"));
+		parseVisualScenes(assetLibrary, root->FirstChildElement("library_visual_scenes"));		
 	}
 };
