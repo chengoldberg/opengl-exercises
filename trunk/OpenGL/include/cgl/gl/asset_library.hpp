@@ -5,6 +5,8 @@
 #include <map>
 #include <string>
 #include "glm/glm.hpp"
+#include "CTargaImage.h"
+#include "CTargaImage.cpp"
 
 namespace cgl
 {
@@ -25,11 +27,90 @@ namespace cgl
 
 	class Image
 	{
+	public:
+		Image(std::string filename) : _filename(filename), _data(NULL)
+		{
+		}
+
+		void loadImage()
+		{
+			//TODO: release
+			CTargaImage* img = new CTargaImage();
+			if(!img->Load(_filename.c_str()))
+			{				
+				throw std::exception("Unable to load image");
+			}		
+			unsigned char format = img->GetImageFormat();
+			//assert(format==1);
+			_data = img->GetImage();
+			_width = img->GetWidth();
+			_height = img->GetHeight();
+		}
+
+		unsigned char* getImage()
+		{
+			// Lazy load
+			if(!_data)
+				loadImage();
+			return _data;
+		}
+
+		int getWidth() const { return _width; };
+		int getHeight() const { return _height; };
+
+	protected:
+		int _width, _height;
+		unsigned char* _data;
+		std::string _filename;
 	};
 
 	class Texture
 	{
+	public:
+		virtual void bind() = 0;
+	};
 
+	class Texture2D : public Texture
+	{
+	public:
+
+		void initFrom(Image* image)
+		{
+			_image = image;
+			image->loadImage();
+			glGenTextures(1, &_texId);
+			bind();
+			//unsigned char* data = new unsigned char[_image->getWidth()*_image->getHeight()*4];
+			//std::memcpy(data, _image->getImage(), _image->getWidth()*_image->getHeight()*4);
+			//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _image->getWidth(), _image->getHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _image->getImage());
+			//glTexParameteri(GL_TEXTURE_2D, GL_GENERATE_MIPMAP, GL_FALSE);
+
+			glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+			//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _image->getWidth(), _image->getHeight(), 0, GL_RGB, GL_UNSIGNED_BYTE, _image->getImage());
+			gluBuild2DMipmaps(GL_TEXTURE_2D, GL_RGBA, _image->getWidth(), _image->getHeight(), GL_RGBA, GL_UNSIGNED_BYTE, _image->getImage());
+			/*
+			static GLubyte data[] = {
+				255,255,255,
+				128,128,128,
+				64,64,64,
+				0,0,0};
+			glPixelStorei(GL_UNPACK_ALIGNMENT,1);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 2, 2, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+			*/
+		}
+	
+		virtual void bind()
+		{
+			glBindTexture(GL_TEXTURE_2D, _texId);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		}
+
+	protected:
+		cgl::Image* _image;
+		GLuint _texId;
 	};
 
 	class Effect
@@ -45,6 +126,10 @@ namespace cgl
 	class CommonEffect : public Effect
 	{
 	public:
+		CommonEffect() : _isInit(false), _isLazyInit(true), _diffuseTexture(NULL)
+		{
+		}
+
 		void init()
 		{
 			std::vector<cgl::Shader> shaders;
@@ -55,19 +140,41 @@ namespace cgl
 			// Get common environment unifrom locations
 			_unifroms.modelViewMatrix = glGetUniformLocation(_program.getId(), "uModelViewMatrix");
 			_unifroms.projectionMatrix = glGetUniformLocation(_program.getId(), "uProjectionMatrix");	
+			_unifroms.textureEnabled = glGetUniformLocation(_program.getId(), "uTextureEnabled");	
+			_unifroms.texture0 = glGetUniformLocation(_program.getId(), "uTexture0");	
 			_attribs["VERTEX"] = glGetAttribLocation(_program.getId(), "aPosition");
 			_attribs["NORMAL"] = glGetAttribLocation(_program.getId(), "aColor");
+			_attribs["TEXCOORD"] = glGetAttribLocation(_program.getId(), "aTexCoord");
+			_isInit = true;
 		}
 
 		void applyEffect()
 		{
+			if(!_isInit)
+			{
+				if(_isLazyInit)
+					init();
+				else
+					throw std::exception("Can't apply effect before initializing it");
+			}
 			_program.use();
+
+			//glProgramUniform1i(_program.getId(), _unifroms.textureEnabled, _diffuseTexture != NULL);			
+			glProgramUniform1i(_program.getId(), _unifroms.textureEnabled, 1);			
+
+			if(_diffuseTexture)
+			{
+				glProgramUniform1i(_program.getId(), _unifroms.texture0, 0);
+				glActiveTexture(GL_TEXTURE0+0);
+				_diffuseTexture->bind();
+			}
+
 		}
 
 		void updateEnvUniforms(glm::mat4& modelView, glm::mat4& projection)
 		{
 			glProgramUniformMatrix4fv(_program.getId(), _unifroms.modelViewMatrix, 1, false, glm::value_ptr(modelView));
-			glProgramUniformMatrix4fv(_program.getId(), _unifroms.projectionMatrix, 1, false, glm::value_ptr(projection));	
+			glProgramUniformMatrix4fv(_program.getId(), _unifroms.projectionMatrix, 1, false, glm::value_ptr(projection));				
 		}
 
 		std::map<std::string, GLuint> getAttribLocs()
@@ -75,20 +182,34 @@ namespace cgl
 			return _attribs;
 		}
 
+		void setEmissionColor(glm::vec4 val) { _emissionColor = val; };
+		void setAmbientColor(glm::vec4 val) { _ambientColor = val; };
+		void setDiffuseColor(glm::vec4 val) { _diffuseColor = val; };
+		void setSpecularColor(glm::vec4 val) { _specularColor = val; };
+		void setShininess(float val) { _shininess = val; };
+		
+		void setDiffuseTexture(cgl::Texture* val) { _diffuseTexture = val; };		
 	protected:
 
 		struct Uniforms
 		{
 			GLuint modelViewMatrix;
 			GLuint projectionMatrix;
+			GLuint textureEnabled;
+			GLuint texture0;
 		} _unifroms;
 
 		std::map<std::string, GLuint> _attribs;
 		cgl::Program _program;
-		cgl::Texture _diffuseTexture;
+
+		cgl::Texture* _diffuseTexture;
+		glm::vec4 _emissionColor;
 		glm::vec4 _diffuseColor;
 		glm::vec4 _ambientColor;
 		glm::vec4 _specularColor;
+		float _shininess;
+		bool _isInit;
+		bool _isLazyInit;
 	};
 
 	// Simple-Scene-Graph
@@ -193,6 +314,7 @@ namespace cgl
 		std::map<std::string, cgl::SimpleMesh*> _meshes;
 		std::map<std::string, ssg::SceneGraphRoot*> _scenes;
 		std::map<std::string, cgl::Effect*> _effects;
+		std::map<std::string, cgl::Image*> _images;
 	public:
 
 		Camera* storeCamera(std::string id, cgl::Camera* camera) 
@@ -219,10 +341,17 @@ namespace cgl
 			return _effects[id];
 		}	
 
+		// Storing takes ownership on the object
+		void store(std::string id, cgl::Image* image)
+		{
+			_images[id] = image;
+		}	
+
 		ssg::SceneGraphRoot* getScene(std::string id) { return _scenes[id]; };
 		cgl::Camera* getCamera(std::string id) { return _cameras[id]; };
 		cgl::SimpleMesh* getMesh(std::string id) { return _meshes[id]; };
 		cgl::Effect* getEffect(std::string id) { return _effects[id]; };
+		cgl::Image* getImage(std::string id) { return _images[id]; };
 	};
 
 }

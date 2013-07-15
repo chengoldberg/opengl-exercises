@@ -129,11 +129,11 @@ public:
 
 void drawScene()
 {
-	//cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("Scene");
-	cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("test-scene");
+	cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("Scene");
+	//cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("test-scene");
 	
-	//FindCameraVisitor query("Camera");
-	FindCameraVisitor query("test-camera-instance");
+	FindCameraVisitor query("Camera");
+	//FindCameraVisitor query("test-camera-instance");
 
 	scene->accept(&query);
 	if(!query.isCameraFound())
@@ -144,10 +144,12 @@ void drawScene()
 
 void initAssetsFromCOLLADA()
 {
-	cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_simple9.dae", assetLibrary);
+	//cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_simple_mat1.dae", assetLibrary);
+	cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_test3.dae", assetLibrary);
+	
 	//cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_simple_tex3.dae", assetLibrary);
-	//cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("Scene");
-	//scene->accept(&ScenePrettyPrinter());
+	cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("Scene");
+	scene->accept(&ScenePrettyPrinter());
 }
 
 void initAssets()
@@ -192,7 +194,7 @@ void init()
 
 	// Init assets
 	initAssetsFromCOLLADA();
-	initAssets();	
+	//initAssets();	
 
 	// Set background color to gray
 	glClearColor(0.5f, 0.5f, 0.5f, 0);
@@ -237,10 +239,10 @@ int main(int argc, char **argv)
 {
 	try
 	{
-		glutInitContextVersion(4,3);
-		glutInitContextProfile(GLUT_CORE_PROFILE);
+		//glutInitContextVersion(4,3);
+		//glutInitContextProfile(GLUT_CORE_PROFILE);
 		//glutInitContextProfile(GLUT_COMPATIBILITY_PROFILE);
-		glutInitContextFlags(GLUT_DEBUG);
+		//glutInitContextFlags(GLUT_DEBUG);
 
 		glutInit(&argc, argv);
 		glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
