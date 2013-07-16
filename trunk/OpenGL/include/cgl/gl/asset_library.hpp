@@ -11,6 +11,60 @@
 namespace cgl
 {
 	// Library
+	class Light
+	{
+	public:
+		struct LightProperties
+		{
+			glm::vec4 ambient;              // Aclarri   
+			glm::vec4 diffuse;              // Dcli   
+			glm::vec4 specular;             // Scli   
+			glm::vec4 position;             // Ppli   
+			glm::vec4 halfVector;           // Derived: Hi   
+			glm::vec3 spotDirection;        // Sdli   
+			float spotExponent;        // Srli   
+			float spotCutoff;          // Crli                              
+										// (range: [0.0,90.0], 180.0)   
+			float spotCosCutoff;       // Derived: cos(Crli)                 
+										// (range: [1.0,0.0],-1.0)   
+			float constantAttenuation; // K0   
+			float linearAttenuation;   // K1   
+			float quadraticAttenuation;// K2  
+			bool isEnabled;   
+		} _properties;
+
+	public:
+		Light() 
+		{
+			memset(&_properties, 0, sizeof(_properties));
+			_properties.constantAttenuation = 1;
+			_properties.spotDirection = glm::vec3(0,0,-1);
+			_properties.spotCutoff = 180;
+		}
+
+		LightProperties& getProperties() { return _properties; };
+
+	protected:
+	};
+
+	class Lighting
+	{
+	public:
+		void setActiveLights(std::vector<cgl::Light*> val) { _activeLights = val; };
+		
+		void transformWorldView(glm::mat4 worldViewMatrix)
+		{
+			for(int i=0; i<_activeLights.size(); ++i)
+			{
+				_activeLights[i]->getProperties().position = worldViewMatrix * _activeLights[i]->getProperties().position;
+			}
+		}
+
+		std::vector<cgl::Light*>& getActiveLightsGlobally() { return _activeLights; };
+	protected:
+
+		std::vector<cgl::Light*> _activeLights;
+	};
 
 	class Camera
 	{
@@ -116,9 +170,11 @@ namespace cgl
 	class Effect
 	{
 	public:
+		virtual void updateLighting(cgl::Lighting* lighting) = 0;
 		virtual void updateEnvUniforms(glm::mat4& modelView, glm::mat4& projection) = 0;
 		virtual std::map<std::string, GLuint> getAttribLocs() = 0;
 		virtual void applyEffect() = 0;
+
 	protected:
 		
 	};
@@ -126,8 +182,15 @@ namespace cgl
 	class CommonEffect : public Effect
 	{
 	public:
-		CommonEffect() : _isInit(false), _isLazyInit(true), _diffuseTexture(NULL)
+		CommonEffect() : _isInit(false), _isLazyInit(true), _diffuseTexture(NULL), _isLighting(false)
 		{
+		}
+
+		std::string replaceHelper(const char* txt, int i) 
+		{
+			char temp[64];
+			sprintf_s(temp, txt, i);
+			return std::string(temp);
 		}
 
 		void init()
@@ -136,15 +199,42 @@ namespace cgl
 			shaders.push_back(cgl::Shader::fromFile(GL_VERTEX_SHADER,"../res/shader/fixed_function_simple.vert"));		
 			shaders.push_back(cgl::Shader::fromFile(GL_FRAGMENT_SHADER,"../res/shader/fixed_function_simple.frag"));		
 			_program.build(shaders);	
-
+			GLuint programId = _program.getId();
 			// Get common environment unifrom locations
-			_unifroms.modelViewMatrix = glGetUniformLocation(_program.getId(), "uModelViewMatrix");
-			_unifroms.projectionMatrix = glGetUniformLocation(_program.getId(), "uProjectionMatrix");	
-			_unifroms.textureEnabled = glGetUniformLocation(_program.getId(), "uTextureEnabled");	
-			_unifroms.texture0 = glGetUniformLocation(_program.getId(), "uTexture0");	
+			_uniforms.modelViewMatrix = glGetUniformLocation(_program.getId(), "uModelViewMatrix");
+			_uniforms.normalMatrix = glGetUniformLocation(_program.getId(), "uNormalMatrix");
+			_uniforms.projectionMatrix = glGetUniformLocation(_program.getId(), "uProjectionMatrix");	
+			_uniforms.textureEnabled = glGetUniformLocation(_program.getId(), "uTextureEnabled");	
+			_uniforms.lightingEnabled = glGetUniformLocation(_program.getId(), "uLightingEnabled");	
+			_uniforms.texture0 = glGetUniformLocation(_program.getId(), "uTexture0");	
 			_attribs["VERTEX"] = glGetAttribLocation(_program.getId(), "aPosition");
-			_attribs["NORMAL"] = glGetAttribLocation(_program.getId(), "aColor");
+			_attribs["NORMAL"] = glGetAttribLocation(_program.getId(), "aNormal");
 			_attribs["TEXCOORD"] = glGetAttribLocation(_program.getId(), "aTexCoord");
+			_attribs["COLOR"] = glGetAttribLocation(_program.getId(), "aColor");
+
+
+			// Lighting unifroms			
+			for(int i=0;i<8;++i) 
+			{	    		
+				_uniforms.lights[i].position = glGetUniformLocation(programId, replaceHelper("uLightSource[%d].position",i).c_str());
+	    		_uniforms.lights[i].ambient = glGetUniformLocation(programId, replaceHelper("uLightSource[%d].ambient",i).c_str());
+	    		_uniforms.lights[i].diffuse = glGetUniformLocation(programId, replaceHelper("uLightSource[%d].diffuse",i).c_str());
+	    		_uniforms.lights[i].specular = glGetUniformLocation(programId, replaceHelper("uLightSource[%d].specular",i).c_str());
+	    		_uniforms.lights[i].spotDirection = glGetUniformLocation(programId, replaceHelper("uLightSource[%d].spotDirection",i).c_str());
+	    		_uniforms.lights[i].spotExponent = glGetUniformLocation(programId, replaceHelper("uLightSource[%d].spotExponent",i).c_str());  			
+	    		_uniforms.lights[i].spotCutoff = glGetUniformLocation(programId, replaceHelper("uLightSource[%d].spotCutoff",i).c_str());			
+	    		_uniforms.lights[i].constantAttenuation = glGetUniformLocation(programId, replaceHelper("uLightSource[%d].constantAttenuation",i).c_str());
+	    		_uniforms.lights[i].linearAttenuation = glGetUniformLocation(programId, replaceHelper("uLightSource[%d].linearAttenuation",i).c_str());			
+	    		_uniforms.lights[i].quadraticAttenuation = glGetUniformLocation(programId, replaceHelper("uLightSource[%d].quadraticAttenuation",i).c_str());
+	    		_uniforms.lights[i].isEnabled = glGetUniformLocation(programId, replaceHelper("uLightSource[%d].isEnabled",i).c_str());
+    		};
+
+			_uniforms.material.ambient = glGetUniformLocation(programId, "uMaterial.ambient");
+			_uniforms.material.diffuse = glGetUniformLocation(programId, "uMaterial.diffuse");
+			_uniforms.material.specular = glGetUniformLocation(programId, "uMaterial.specular");
+			_uniforms.material.shininess = glGetUniformLocation(programId, "uMaterial.shininess");
+			_uniforms.material.emission = glGetUniformLocation(programId, "uMaterial.emission");	 
+
 			_isInit = true;
 		}
 
@@ -159,22 +249,57 @@ namespace cgl
 			}
 			_program.use();
 
-			//glProgramUniform1i(_program.getId(), _unifroms.textureEnabled, _diffuseTexture != NULL);			
-			glProgramUniform1i(_program.getId(), _unifroms.textureEnabled, 1);			
+			glProgramUniform1i(_program.getId(), _uniforms.lightingEnabled, _isLighting);			
+
+			glProgramUniform1i(_program.getId(), _uniforms.textureEnabled, _diffuseTexture != NULL);			
 
 			if(_diffuseTexture)
 			{
-				glProgramUniform1i(_program.getId(), _unifroms.texture0, 0);
+				glProgramUniform1i(_program.getId(), _uniforms.texture0, 0);
 				glActiveTexture(GL_TEXTURE0+0);
 				_diffuseTexture->bind();
 			}
 
 		}
 
+		virtual void updateLighting(cgl::Lighting* lighting)
+		{
+			int cnt = 0;
+			std::vector<cgl::Light*> activeLights = lighting->getActiveLightsGlobally();
+			for(std::vector<cgl::Light*>::iterator light = activeLights.begin();
+				light != activeLights.end();
+				light++, cnt++)
+			{
+				cgl::Light::LightProperties& prop = (*light)->getProperties();
+				glUniform1i(_uniforms.lights[cnt].isEnabled, true);
+				glUniform4fv(_uniforms.lights[cnt].position, 1, glm::value_ptr(prop.position));
+				glUniform4fv(_uniforms.lights[cnt].ambient, 1, glm::value_ptr(prop.ambient));
+				glUniform4fv(_uniforms.lights[cnt].diffuse, 1, glm::value_ptr(prop.diffuse));
+				glUniform4fv(_uniforms.lights[cnt].specular, 1, glm::value_ptr(prop.specular));
+				glUniform1f(_uniforms.lights[cnt].constantAttenuation, prop.constantAttenuation);
+				glUniform1f(_uniforms.lights[cnt].linearAttenuation, prop.linearAttenuation);
+				glUniform1f(_uniforms.lights[cnt].quadraticAttenuation, prop.quadraticAttenuation);
+
+				glUniform3fv(_uniforms.lights[cnt].spotDirection, 1, glm::value_ptr(prop.spotDirection));
+				glUniform1f(_uniforms.lights[cnt].spotExponent, prop.spotExponent);
+				glUniform1f(_uniforms.lights[cnt].spotCutoff, prop.spotCutoff);
+
+				glUniform4fv(_uniforms.material.emission, 1, glm::value_ptr(_emissionColor));
+				glUniform4fv(_uniforms.material.ambient, 1, glm::value_ptr(_ambientColor));
+				glUniform4fv(_uniforms.material.diffuse, 1, glm::value_ptr(_diffuseColor));
+				glUniform4fv(_uniforms.material.specular, 1, glm::value_ptr(_specularColor));
+				glUniform1f(_uniforms.material.shininess, _shininess);
+			}
+			for(; cnt<8; ++cnt)
+				glUniform1i(_uniforms.lights[cnt].isEnabled, false);
+
+		}
+
 		void updateEnvUniforms(glm::mat4& modelView, glm::mat4& projection)
 		{
-			glProgramUniformMatrix4fv(_program.getId(), _unifroms.modelViewMatrix, 1, false, glm::value_ptr(modelView));
-			glProgramUniformMatrix4fv(_program.getId(), _unifroms.projectionMatrix, 1, false, glm::value_ptr(projection));				
+			glProgramUniformMatrix4fv(_program.getId(), _uniforms.modelViewMatrix, 1, false, glm::value_ptr(modelView));
+			glProgramUniformMatrix3fv(_program.getId(), _uniforms.normalMatrix, 1, false, glm::value_ptr(glm::mat3(modelView))); //TODO: inverse-transpose glm::inverseTranspose
+			glProgramUniformMatrix4fv(_program.getId(), _uniforms.projectionMatrix, 1, false, glm::value_ptr(projection));				
 		}
 
 		std::map<std::string, GLuint> getAttribLocs()
@@ -182,6 +307,7 @@ namespace cgl
 			return _attribs;
 		}
 
+		void setIsLighting(bool val) { _isLighting = val; };
 		void setEmissionColor(glm::vec4 val) { _emissionColor = val; };
 		void setAmbientColor(glm::vec4 val) { _ambientColor = val; };
 		void setDiffuseColor(glm::vec4 val) { _diffuseColor = val; };
@@ -194,10 +320,40 @@ namespace cgl
 		struct Uniforms
 		{
 			GLuint modelViewMatrix;
+			GLuint normalMatrix;
 			GLuint projectionMatrix;
 			GLuint textureEnabled;
+			GLuint lightingEnabled;
 			GLuint texture0;
-		} _unifroms;
+
+			struct LightUniforms
+			{
+				GLuint ambient;              // Aclarri   
+				GLuint diffuse;              // Dcli   
+				GLuint specular;             // Scli   
+				GLuint position;             // Ppli   
+				GLuint halfVector;           // Derived: Hi   
+				GLuint spotDirection;        // Sdli   
+				GLuint spotExponent;        // Srli   
+				GLuint spotCutoff;          // Crli                              
+											// (range: [0.0,90.0], 180.0)   
+				GLuint spotCosCutoff;       // Derived: cos(Crli)                 
+											// (range: [1.0,0.0],-1.0)   
+				GLuint constantAttenuation; // K0   
+				GLuint linearAttenuation;   // K1   
+				GLuint quadraticAttenuation;// K2  
+				GLuint isEnabled;   
+			} lights[8];
+
+			struct MaterialUniforms
+			{
+				GLuint emission;             
+				GLuint ambient;              // Aclarri   
+				GLuint diffuse;              // Dcli   
+				GLuint specular;             
+				GLuint shininess;             // Scli   
+			} material;
+		} _uniforms;
 
 		std::map<std::string, GLuint> _attribs;
 		cgl::Program _program;
@@ -210,6 +366,7 @@ namespace cgl
 		float _shininess;
 		bool _isInit;
 		bool _isLazyInit;
+		bool _isLighting;
 	};
 
 	// Simple-Scene-Graph
@@ -287,6 +444,16 @@ namespace cgl
 			cgl::Camera* _camera;
 		};
 
+		class LightInstanceNode : public Node
+		{
+		public:
+			LightInstanceNode(cgl::Light* light, std::string id) : _light(light), Node(id) {};
+			virtual void accept(IVisitor *visitor);
+			cgl::Light* getLight() const { return _light; };
+		protected:			
+			cgl::Light* _light;
+		};
+
 		class SceneGraphRoot : public GroupNode
 		{		
 		public:
@@ -304,6 +471,7 @@ namespace cgl
 			virtual void visit(GeomertyInstanceNode*){};
 			virtual void visit(CameraInstanceNode*){};
 			virtual void visit(EffectInstanceNode* node){node->acceptChildren(this);};
+			virtual void visit(LightInstanceNode* node){};
 		};
 	}
 
@@ -315,6 +483,7 @@ namespace cgl
 		std::map<std::string, ssg::SceneGraphRoot*> _scenes;
 		std::map<std::string, cgl::Effect*> _effects;
 		std::map<std::string, cgl::Image*> _images;
+		std::map<std::string, cgl::Light*> _lights;
 	public:
 
 		Camera* storeCamera(std::string id, cgl::Camera* camera) 
@@ -347,11 +516,17 @@ namespace cgl
 			_images[id] = image;
 		}	
 
+		void store(std::string id, cgl::Light* light)
+		{
+			_lights[id] = light;
+		}	
+
 		ssg::SceneGraphRoot* getScene(std::string id) { return _scenes[id]; };
 		cgl::Camera* getCamera(std::string id) { return _cameras[id]; };
 		cgl::SimpleMesh* getMesh(std::string id) { return _meshes[id]; };
 		cgl::Effect* getEffect(std::string id) { return _effects[id]; };
 		cgl::Image* getImage(std::string id) { return _images[id]; };
+		cgl::Light* getLight(std::string id) { return _lights[id]; };
 	};
 
 }
@@ -361,6 +536,7 @@ void cgl::ssg::CameraInstanceNode::accept(IVisitor *visitor){ visitor->visit(thi
 void cgl::ssg::GeomertyInstanceNode::accept(IVisitor *visitor){ visitor->visit(this); }
 void cgl::ssg::TransformationNode::accept(IVisitor *visitor){ visitor->visit(this); }
 void cgl::ssg::EffectInstanceNode::accept(IVisitor *visitor){ visitor->visit(this); }
+void cgl::ssg::LightInstanceNode::accept(IVisitor *visitor){ visitor->visit(this); }
 
 void cgl::ssg::GroupNode::acceptChildren(IVisitor *visitor)
 {
@@ -426,5 +602,11 @@ public:
 	{
 		applyIndent();
 		std::cout << "Camera Instance Node" << std::endl;
+	}
+
+	virtual void visit(cgl::ssg::LightInstanceNode* light)
+	{		
+		applyIndent();
+		std::cout << "Light Instance Node" << std::endl;
 	}
 };

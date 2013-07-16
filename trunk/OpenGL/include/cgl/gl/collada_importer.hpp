@@ -211,6 +211,7 @@ namespace cgl
 			NODE,
 			MATRIX,
 			INSTANCE_CAMERA,
+			INSTANCE_LIGHT,
 			INSTANCE_GEOMETRY,
 		};
 
@@ -222,6 +223,7 @@ namespace cgl
 			_names["matrix"] = MATRIX;
 			_names["instance_camera"] = INSTANCE_CAMERA;
 			_names["instance_geometry"] = INSTANCE_GEOMETRY;
+			_names["instance_light"] = INSTANCE_LIGHT;
 		}
 
 		cgl::ssg::SceneGraphRoot* getSceneGraphRoot() const { return _root; };
@@ -264,6 +266,14 @@ namespace cgl
 					cgl::Camera* camera = _assetLibrary.getCamera(element.Attribute("url")+1);
 					cgl::ssg::CameraInstanceNode* cameraNode = new cgl::ssg::CameraInstanceNode(camera, _nodeIdStack.top());
 					_curNode->addChild(cameraNode);
+				}
+				break;
+
+			case INSTANCE_LIGHT:
+				{
+					cgl::Light* light = _assetLibrary.getLight(element.Attribute("url")+1);
+					cgl::ssg::LightInstanceNode* lightNode = new cgl::ssg::LightInstanceNode(light, _nodeIdStack.top());
+					_curNode->addChild(lightNode);
 				}
 				break;
 
@@ -369,6 +379,7 @@ namespace cgl
 			effect->setSpecularColor(color);
 		effect->setShininess((float)std::atof(phong->FirstChildElement("shininess")->FirstChildElement("float")->GetText()));
 
+		effect->setIsLighting(true);
 		return effect;
 	}
 
@@ -406,6 +417,43 @@ namespace cgl
 			tinyxml2::XMLElement* phong = commonProfileNode->FirstChildElement("technique")->FirstChildElement("phong");
 			cgl::Effect* effect = parsePhongEffect(assetLibrary, phong, samplers);
 			assetLibrary.storeEffect(id, effect);
+		}
+	}
+
+	cgl::Light* parsePointLight(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* pointNode)
+	{
+		cgl::Light* light = new cgl::Light();
+		cgl::Light::LightProperties& prop = light->getProperties();
+
+		float buffer[3];
+		parseFloatArray(pointNode->FirstChildElement("color")->GetText(), 3, buffer);
+		glm::vec4 color = glm::make_vec4(buffer);
+
+		prop.diffuse = color;
+		prop.ambient = color;
+		prop.specular = color;
+		prop.constantAttenuation = std::atof(pointNode->FirstChildElement("constant_attenuation")->GetText());
+		prop.linearAttenuation = std::atof(pointNode->FirstChildElement("linear_attenuation")->GetText());
+		prop.quadraticAttenuation = std::atof(pointNode->FirstChildElement("quadratic_attenuation")->GetText());
+
+		return light;
+	}
+
+	void parseLights(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* base)
+	{
+		for(tinyxml2::XMLElement* lightNode = base->FirstChildElement("light"); 
+			lightNode; 
+			lightNode = lightNode->NextSiblingElement("effect"))
+		{
+			std::string id = lightNode->Attribute("id");
+
+			tinyxml2::XMLElement* technique = lightNode->FirstChildElement("technique_common");
+			// In our case, the Texture object contains both surface and sampler
+			
+
+			tinyxml2::XMLElement* pointNode = technique->FirstChildElement("point");
+			cgl::Light* light = parsePointLight(assetLibrary, pointNode);
+			assetLibrary.store(id, light);
 		}
 	}
 
@@ -456,7 +504,8 @@ namespace cgl
 		parseGeometries(assetLibrary, root->FirstChildElement("library_geometries"));
 		parseImages(assetLibrary, root->FirstChildElement("library_images"));
 		parseEffects(assetLibrary, root->FirstChildElement("library_effects"));
-		parseMaterials(root->FirstChildElement("library_materials"));
+		parseLights(assetLibrary, root->FirstChildElement("library_lights"));
+		parseMaterials(root->FirstChildElement("library_materials"));		
 		parseVisualScenes(assetLibrary, root->FirstChildElement("library_visual_scenes"));		
 	}
 };
