@@ -40,11 +40,12 @@ class GLRendererVisitor : public cgl::ssg::IVisitor
 {
 public:
 
-	GLRendererVisitor(cgl::Camera* camera, glm::mat4 cameraTransformation) : _modelView(1) 
+	GLRendererVisitor(cgl::Camera* camera, glm::mat4 cameraTransformation, cgl::Lighting* lighting) : _modelView(1) 
 	{
 		_modelView = cameraTransformation;
 		_projection = camera->getMatrix();
 		_currentEffect = NULL;
+		_lighting = lighting;
 	}
 
 	virtual void visit(cgl::ssg::SceneGraphRoot* scene)
@@ -63,8 +64,9 @@ public:
 	virtual void visit(cgl::ssg::EffectInstanceNode* effectNode)
 	{
 		cgl::Effect* temp = _currentEffect;
-		_currentEffect = effectNode->getEffect();
+		_currentEffect = effectNode->getEffect();		
 		_currentEffect->applyEffect();
+		_currentEffect->updateLighting(_lighting);
 		effectNode->acceptChildren(this);		
 
 		// Apply previous effect
@@ -84,18 +86,23 @@ public:
 protected:
 	glm::mat4 _modelView, _projection;
 	cgl::Effect* _currentEffect;
+	cgl::Lighting* _lighting;
 };
 
-class FindCameraVisitor : public cgl::ssg::IVisitor
+// 
+// Visits the scene-graph and finds the world position of lights and a queried camera
+//
+class SpatialVisitor : public cgl::ssg::IVisitor
 {
 protected:
 	cgl::Camera* _foundCamera;
 	glm::mat4 _cameraTransformation;
 	std::string _queriedId;
 	glm::mat4 _modelWorld;
+	std::vector<cgl::Light*> _lights;
 
 public:
-	FindCameraVisitor(std::string queriedId) : _queriedId(queriedId), _foundCamera(NULL) {};
+	SpatialVisitor(std::string queriedId) : _queriedId(queriedId), _foundCamera(NULL) {};
 
 	bool isCameraFound() { return _foundCamera != NULL; };
 
@@ -109,12 +116,24 @@ public:
 		return glm::inverse(_cameraTransformation);
 	}
 
+	std::vector<cgl::Light*> getLights()
+	{
+		return _lights;
+	}
+
 	virtual void visit(cgl::ssg::TransformationNode* transformation)
 	{
 		glm::mat4 temp = _modelWorld;
 		_modelWorld *= transformation->getMatrix();
 		transformation->acceptChildren(this);
 		_modelWorld = temp;
+	}
+
+	virtual void visit(cgl::ssg::LightInstanceNode* light)
+	{
+		// Update light world positions
+		light->getLight()->getProperties().position = _modelWorld * glm::vec4(0,0,0,1);
+		_lights.push_back(light->getLight());
 	}
 
 	virtual void visit(cgl::ssg::CameraInstanceNode* camera)
@@ -132,20 +151,25 @@ void drawScene()
 	cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("Scene");
 	//cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("test-scene");
 	
-	FindCameraVisitor query("Camera");
+	SpatialVisitor query("Camera");
 	//FindCameraVisitor query("test-camera-instance");
 
 	scene->accept(&query);
 	if(!query.isCameraFound())
 		throw std::exception("Camera not found!");
-	GLRendererVisitor renderer(query.getCamera(), query.getCameraTransformation());
+	
+	cgl::Lighting lighting;
+	lighting.setActiveLights(query.getLights());
+	lighting.transformWorldView(query.getCameraTransformation());
+
+	GLRendererVisitor renderer(query.getCamera(), query.getCameraTransformation(), &lighting);
 	scene->accept(&renderer);
 }
 
 void initAssetsFromCOLLADA()
 {
 	//cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_simple_mat1.dae", assetLibrary);
-	cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_test3.dae", assetLibrary);
+	cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_test4.dae", assetLibrary);
 	
 	//cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_simple_tex3.dae", assetLibrary);
 	cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("Scene");
@@ -239,10 +263,10 @@ int main(int argc, char **argv)
 {
 	try
 	{
-		//glutInitContextVersion(4,3);
-		//glutInitContextProfile(GLUT_CORE_PROFILE);
+		glutInitContextVersion(4,3);
+		glutInitContextProfile(GLUT_CORE_PROFILE);
 		//glutInitContextProfile(GLUT_COMPATIBILITY_PROFILE);
-		//glutInitContextFlags(GLUT_DEBUG);
+		glutInitContextFlags(GLUT_DEBUG);
 
 		glutInit(&argc, argv);
 		glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
