@@ -272,8 +272,16 @@ namespace cgl
 			case INSTANCE_LIGHT:
 				{
 					cgl::Light* light = _assetLibrary.getLight(element.Attribute("url")+1);
-					cgl::ssg::LightInstanceNode* lightNode = new cgl::ssg::LightInstanceNode(light, _nodeIdStack.top());
-					_curNode->addChild(lightNode);
+					if(!light)
+					{
+						std::cerr << "Can't create light instance" << std::endl;
+						//throw std::exception("Can't create light instance");
+					}
+					else
+					{
+						cgl::ssg::LightInstanceNode* lightNode = new cgl::ssg::LightInstanceNode(light, _nodeIdStack.top());
+						_curNode->addChild(lightNode);
+					}
 				}
 				break;
 
@@ -357,29 +365,39 @@ namespace cgl
 		throw std::exception("Didn't find either color nor texture!");
 	}
 
-	cgl::Effect* parsePhongEffect(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* phong, std::map<std::string, cgl::Texture*>& samplers)
-	{
-		cgl::CommonEffect* effect = new cgl::CommonEffect();
+	cgl::Effect* parseLambertEffect(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* lambert, std::map<std::string, cgl::Texture*>& samplers)
+	{		
+		cgl::CommonEffect* effect = new cgl::CommonEffect((cgl::CommonProgram*) assetLibrary.getProgram("common"));
 		std::string textureName;
 		glm::vec4 color;
 
-		if(parseColorOrTexture(phong->FirstChildElement("emission"), &color, &textureName) == FOUND_COLOR)
+		if(parseColorOrTexture(lambert->FirstChildElement("emission"), &color, &textureName) == FOUND_COLOR)
 			effect->setEmissionColor(color);
-		if(parseColorOrTexture(phong->FirstChildElement("ambient"), &color, &textureName) == FOUND_COLOR)
+		if(parseColorOrTexture(lambert->FirstChildElement("ambient"), &color, &textureName) == FOUND_COLOR)
 			effect->setAmbientColor(color);
-		if(parseColorOrTexture(phong->FirstChildElement("diffuse"), &color, &textureName) == FOUND_COLOR)
+		if(parseColorOrTexture(lambert->FirstChildElement("diffuse"), &color, &textureName) == FOUND_COLOR)
 		{
 			effect->setDiffuseColor(color);
 		}
 		else
 		{
 			effect->setDiffuseTexture(samplers[textureName]);
+			effect->setDiffuseColor(glm::vec4(0.8,0.8,0.8,1));
 		}
+		effect->setIsLighting(true);
+		return effect;
+	}
+
+	cgl::Effect* parsePhongEffect(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* phong, std::map<std::string, cgl::Texture*>& samplers)
+	{		
+		cgl::CommonEffect* effect = (cgl::CommonEffect*) parseLambertEffect(assetLibrary, phong, samplers);
+		std::string textureName;
+		glm::vec4 color;
+
 		if(parseColorOrTexture(phong->FirstChildElement("specular"), &color, &textureName) == FOUND_COLOR)
 			effect->setSpecularColor(color);
 		effect->setShininess((float)std::atof(phong->FirstChildElement("shininess")->FirstChildElement("float")->GetText()));
 
-		effect->setIsLighting(true);
 		return effect;
 	}
 
@@ -414,8 +432,13 @@ namespace cgl
 				}
 			}
 
-			tinyxml2::XMLElement* phong = commonProfileNode->FirstChildElement("technique")->FirstChildElement("phong");
-			cgl::Effect* effect = parsePhongEffect(assetLibrary, phong, samplers);
+			cgl::Effect* effect;
+			if(tinyxml2::XMLElement* phong = commonProfileNode->FirstChildElement("technique")->FirstChildElement("phong"))
+				effect = parsePhongEffect(assetLibrary, phong, samplers);
+			else if(tinyxml2::XMLElement* lambert = commonProfileNode->FirstChildElement("technique")->FirstChildElement("lambert"))
+				effect = parseLambertEffect(assetLibrary, lambert, samplers);
+			else
+				throw std::exception("Unidentified effect!");
 			assetLibrary.storeEffect(id, effect);
 		}
 	}
@@ -443,16 +466,21 @@ namespace cgl
 	{
 		for(tinyxml2::XMLElement* lightNode = base->FirstChildElement("light"); 
 			lightNode; 
-			lightNode = lightNode->NextSiblingElement("effect"))
+			lightNode = lightNode->NextSiblingElement("light"))
 		{
 			std::string id = lightNode->Attribute("id");
 
 			tinyxml2::XMLElement* technique = lightNode->FirstChildElement("technique_common");
 			// In our case, the Texture object contains both surface and sampler
 			
-
-			tinyxml2::XMLElement* pointNode = technique->FirstChildElement("point");
-			cgl::Light* light = parsePointLight(assetLibrary, pointNode);
+			cgl::Light* light;
+			if(tinyxml2::XMLElement* pointNode = technique->FirstChildElement("point"))
+				light = parsePointLight(assetLibrary, pointNode);			
+			else 
+			{
+				std::cerr << "Unidentified light detected" << std::endl;
+				continue;
+			}
 			assetLibrary.store(id, light);
 		}
 	}

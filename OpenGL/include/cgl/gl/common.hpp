@@ -169,6 +169,11 @@ namespace cgl
 		GLuint getId() const { return this->_id; } 
 	};
 
+	class SpecificProgram : public Program
+	{
+		virtual void init() = 0;
+	};
+
 	struct Attrib 
 	{
 		void* clientBufferPtr;
@@ -357,6 +362,18 @@ namespace cgl
 			return sum/trailLength;
 		}
 	};
+
+	void dumpColorBuffer(std::string filename, int width, int height)
+	{	
+		static char buffer[512*512*3];
+		memset(buffer, 0, width*height*3);
+		glPixelStorei(GL_PACK_ALIGNMENT,1);
+		glReadBuffer(GL_BACK_LEFT);
+		glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,buffer);
+		std::ofstream f(filename, std::ios_base::binary);
+		f.write(buffer,width*height*3);
+		f.close();	
+	}
 }
 
 //
@@ -419,5 +436,15 @@ static void APIENTRY debugOutput
 			fprintf(stderr,"%s: %s(%s) %d: %s\n", debSource, debType, debSev, id, message);
 			assert(!Error);
 			//fclose(f);
+	}
+}
+
+namespace cgl
+{
+	void initDebugAll()
+	{
+		glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+		glDebugMessageCallback(&debugOutput, NULL);
 	}
 }
