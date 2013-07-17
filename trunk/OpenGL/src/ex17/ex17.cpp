@@ -30,12 +30,29 @@
 #include "cgl/gl/common.hpp"
 #include "cgl/gl/asset_library.hpp"
 #include "cgl/gl/collada_importer.hpp"
-	
+
+// Not sure why the window we get is different from the size we request...
+#define GLUT_WINDOW_PAD 8
+#define COLLADA_FILENAME "../res/COLLADA/scene_monkey/monkey_uv.dae"
 
 int	g_height, g_width;
+cgl::AssetLibrary g_assetLibrary;
 
-cgl::AssetLibrary assetLibrary;
+enum EScenes
+{
+	CODED_SCENE,
+	COLLADA_SCENE,	
+	TOTAL_SCENES
+};
+const char* g_scenesNames[] = {"test-scene","Scene"};
+const char* g_camerasNames[] = {"test-camera-instance","Camera"};
+EScenes g_displayScene = COLLADA_SCENE;
 
+//
+// The Renderer visitor traverses the scene graph and sets states and renders
+// meshes in order. It relies on having the camera and lighting environment
+// provided to it. 
+//
 class GLRendererVisitor : public cgl::ssg::IVisitor
 {
 public:
@@ -147,12 +164,9 @@ public:
 };
 
 void drawScene()
-{
-	cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("Scene");
-	//cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("test-scene");
-	
-	SpatialVisitor query("Camera");
-	//FindCameraVisitor query("test-camera-instance");
+{	
+	cgl::ssg::SceneGraphRoot* scene = g_assetLibrary.getScene(g_scenesNames[g_displayScene]);	
+	SpatialVisitor query(g_camerasNames[g_displayScene]);
 
 	scene->accept(&query);
 	if(!query.isCameraFound())
@@ -167,61 +181,61 @@ void drawScene()
 }
 
 void initAssetsFromCOLLADA()
-{
-	//cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_simple_mat1.dae", assetLibrary);
-	cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_test4.dae", assetLibrary);
-	
-	//cgl::importCollada("D:/Chen/Projects/2013/Scenegraph/blender_simple_tex3.dae", assetLibrary);
-	cgl::ssg::SceneGraphRoot* scene = assetLibrary.getScene("Scene");
+{	
+	cgl::importCollada(COLLADA_FILENAME, g_assetLibrary);		
+	cgl::ssg::SceneGraphRoot* scene = g_assetLibrary.getScene("Scene");
 	scene->accept(&ScenePrettyPrinter());
 }
 
-void initAssets()
+void initAssetsFromCode()
 {	
 	// Build library
-	cgl::Camera* camera = assetLibrary.storeCamera("test-camera", new cgl::Camera(glm::perspective(60.0f,1.0f,1.0f,100.0f)));
+	cgl::Camera* camera = g_assetLibrary.storeCamera("test-camera", new cgl::Camera(glm::perspective(60.0f,1.0f,1.0f,100.0f)));
+	cgl::Light* light = new cgl::Light();
+	light->getProperties().diffuse = glm::vec4(1,1,1,1);
+	light->getProperties().isEnabled = true;
 
-	cgl::CommonEffect* effect = new cgl::CommonEffect();
+	cgl::CommonEffect* effect = new cgl::CommonEffect((cgl::CommonProgram*) g_assetLibrary.getProgram("common"));
 	effect->init();
+	effect->setDiffuseColor(glm::vec4(1,1,0,1));
+	effect->setIsLighting(true);
 
-	assetLibrary.storeEffect("effect", effect);
+	g_assetLibrary.storeEffect("effect", effect);
 
 	// Build scene graph
 	cgl::ssg::SceneGraphRoot* root = new cgl::ssg::SceneGraphRoot();
-	cgl::ssg::TransformationNode* cameraTransformNode = new cgl::ssg::TransformationNode(glm::translate(glm::mat4(1), glm::vec3(0,0.5,0)));
+	cgl::ssg::TransformationNode* cameraTransformNode = new cgl::ssg::TransformationNode(glm::translate(glm::mat4(1), glm::vec3(0,0,0)));
 	cgl::ssg::CameraInstanceNode* cameraNode = new cgl::ssg::CameraInstanceNode(camera, "test-camera-instance");
 	cameraTransformNode->addChild(cameraNode);
 	root->addChild(cameraTransformNode);
 
-	cgl::ssg::TransformationNode* meshTransformNode = new cgl::ssg::TransformationNode(glm::translate(glm::mat4(1), glm::vec3(0,0,-5)));
-	cgl::ssg::GeomertyInstanceNode* meshNode = new cgl::ssg::GeomertyInstanceNode(assetLibrary.getMesh("Suzanne-mesh"));
-	cgl::ssg::EffectInstanceNode* effectNode = new cgl::ssg::EffectInstanceNode(assetLibrary.getEffect("effect"));	
+	cgl::ssg::TransformationNode* meshTransformNode = new cgl::ssg::TransformationNode(glm::translate(glm::mat4(1), glm::vec3(0,0,-3)));
+	cgl::ssg::GeomertyInstanceNode* meshNode = new cgl::ssg::GeomertyInstanceNode(g_assetLibrary.getMesh("Suzanne-mesh"));
+	cgl::ssg::EffectInstanceNode* effectNode = new cgl::ssg::EffectInstanceNode(g_assetLibrary.getEffect("effect"));	
 	effectNode->addChild(meshNode);
 	meshTransformNode->addChild(effectNode);
 	root->addChild(meshTransformNode);	
 
-	assetLibrary.storeScene("test-scene", root);
-	root->accept(&ScenePrettyPrinter());
-}
+	cgl::ssg::TransformationNode* lightTransformNode = new cgl::ssg::TransformationNode(glm::translate(glm::mat4(1), glm::vec3(0,5,0)));
+	cgl::ssg::LightInstanceNode* lightNode = new cgl::ssg::LightInstanceNode(light, "light");
+	lightTransformNode->addChild(lightNode);
+	root->addChild(lightTransformNode);
 
-void initDebug()
-{
-	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-	glDebugMessageCallback(&debugOutput, NULL);
+	g_assetLibrary.storeScene("test-scene", root);
+	root->accept(&ScenePrettyPrinter());
 }
 
 void init() 
 {
 	// Init GL Debug
-	initDebug();
+	cgl::initDebugAll();
 
 	// Init assets
 	initAssetsFromCOLLADA();
-	//initAssets();	
+	initAssetsFromCode();	
 
 	// Set background color to gray
-	glClearColor(0.5f, 0.5f, 0.5f, 0);
+	glClearColor(0.7f, 0.7f, 0.4f, 0);
 }
 
 void display(void) 
@@ -234,17 +248,18 @@ void display(void)
 	// Apply shaders
 	drawScene();
 
+	cgl::dumpColorBuffer("out.raw", g_width, g_height);
+	
 	// Swap double buffer
 	glutSwapBuffers();
 }
 
 void reshape(int width, int height) 
 {
-	g_width = width;
-	g_height = height;
-	glViewport(0,0,width,height);
+	g_width = width-GLUT_WINDOW_PAD;
+	g_height = height-GLUT_WINDOW_PAD;
+	glViewport(0,0,g_width,g_height);
 }
-
 
 void keyboardFunc(unsigned char key, int x, int y)
 {
@@ -252,6 +267,23 @@ void keyboardFunc(unsigned char key, int x, int y)
 	{
 	case 27:	// Escape key
 		exit(0);
+		break;
+
+	default:
+		break;
+	}
+}
+
+void keyboardSpecialFunc(int key, int x, int y)
+{
+	switch (key)
+	{
+	case GLUT_KEY_F1:
+		g_displayScene = EScenes::COLLADA_SCENE;
+		break;
+
+	case GLUT_KEY_F2:
+		g_displayScene = EScenes::CODED_SCENE;
 		break;
 
 	default:
@@ -271,7 +303,7 @@ int main(int argc, char **argv)
 		glutInit(&argc, argv);
 		glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
 		glutInitWindowPosition(0, 0);
-		glutInitWindowSize(528, 528);
+		glutInitWindowSize(512+GLUT_WINDOW_PAD*2, 520+GLUT_WINDOW_PAD*2);
 
 		glutCreateWindow("ex17 - Asset management");
 
@@ -279,6 +311,7 @@ int main(int argc, char **argv)
 		glutDisplayFunc(display);
 		glutIdleFunc(display);
 		glutKeyboardFunc(keyboardFunc);
+		glutSpecialFunc(keyboardSpecialFunc);
 		//glutFullScreen();
 
 		// Glew limitation 
