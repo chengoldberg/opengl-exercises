@@ -28,6 +28,7 @@ namespace cgl
 {
 	std::map<std::string, std::string> materialToEffectMap;
 	std::string _pathbase;
+	std::map<std::string, cgl::ssg::Node*> _idsMap;
 
 	void parseCameras(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* base)
 	{
@@ -57,9 +58,17 @@ namespace cgl
 
 	class COLLADASource
 	{
-		float* _data;
+		void* _data;
 		std::string _id;
 		int _elementSize;
+		int _count;
+
+		enum ArrayNames
+		{
+			LINEAR,
+			BEZIER,
+		};
+
 	public:
 		COLLADASource()
 		{
@@ -68,32 +77,53 @@ namespace cgl
 		COLLADASource(tinyxml2::XMLElement* base)
 		{
 			_id = base->Attribute("id");
-			int count = base->FirstChildElement("float_array")->IntAttribute("count");
-			const char* text = base->FirstChildElement("float_array")->GetText();
-			_data = new float[count];
-			std::stringstream ss(text);
-			for(int i=0; i<count; ++i)
+			
+			if(tinyxml2::XMLElement* arrayNode = base->FirstChildElement("float_array"))
 			{
-				ss >> _data[i];
-			}			
+				int count = arrayNode->IntAttribute("count");
+				_data = new float[count];
+				parseFloatArray(arrayNode->GetText(), count, (float*) _data);
+				_count = count;				
+			} 
+			else if(tinyxml2::XMLElement* arrayNode = base->FirstChildElement("Name_array"))
+			{
+				int count = arrayNode->IntAttribute("count");
+				std::map<std::string, ArrayNames> arrayNameMap;
+				arrayNameMap["LINEAR"] = ArrayNames::LINEAR;
+				arrayNameMap["BEZIER"] = ArrayNames::BEZIER;
+
+				ArrayNames* data = new ArrayNames[count];
+				std::string temp;
+				std::stringstream ss(arrayNode->GetText());
+				for(int i=0; i<count; ++i)
+				{
+					ss >> temp;
+					data[i] = arrayNameMap[temp];
+				}		
+				_data = (ArrayNames*) data;
+				_count = count;
+			}
 			_elementSize = base->FirstChildElement("technique_common")->FirstChildElement("accessor")->IntAttribute("stride");
 		}
 
 		void dereference(std::vector<int> indices, std::vector<float>& result)	
 		{
+			float* data = (float*) _data;
 			result.resize(indices.size()*_elementSize);
 			int cnt=0;
 			for(unsigned int i=0; i<indices.size(); ++i)
 			{
 				for(int j=0; j<_elementSize; ++j)
 				{
-					result[cnt++] = _data[indices[i]*_elementSize+j];				
+					result[cnt++] = data[indices[i]*_elementSize+j];				
 				}
 			}
 		}
 
-		float* getData() const { return _data; };
+		float* getDataFloat() const { return (float*) _data; };
+		ArrayNames* getDataName() const { return (ArrayNames*) _data; };
 
+		int getElementCount() { return _count/_elementSize; };
 		int getElementSize() { return _elementSize; }; 
 	};
 
@@ -102,8 +132,19 @@ namespace cgl
 		COLLADASource* source;
 		std::string semantic;
 		int offset;
-		std::vector<int> indices;
+		std::vector<int> indices;		
 	};
+
+	void parseSources(tinyxml2::XMLElement* meshNode, std::map<std::string, COLLADASource>& sources)
+	{	
+		for(tinyxml2::XMLElement* sourceNode = meshNode->FirstChildElement("source"); 
+			sourceNode; 
+			sourceNode = sourceNode->NextSiblingElement("source"))
+		{
+			std::string id = sourceNode->Attribute("id");
+			sources[id] = COLLADASource(sourceNode);
+		}	
+	}
 
 	void parseMeshSources(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* meshNode, std::map<std::string, COLLADASource>& sources)
 	{	
@@ -203,6 +244,7 @@ namespace cgl
 		cgl::ssg::GroupNode* _curNode;
 		std::stack<cgl::ssg::GroupNode*> _nodeStack;
 		std::stack<std::string> _nodeIdStack;
+		std::map<std::string, cgl::ssg::Node*> _idMap;
 	public:
 		std::map<std::string, int> _names;
 		enum 
@@ -210,6 +252,8 @@ namespace cgl
 			INVALID,
 			NODE,
 			MATRIX,
+			TRANSLATE,
+			ROTATE,
 			INSTANCE_CAMERA,
 			INSTANCE_LIGHT,
 			INSTANCE_GEOMETRY,
@@ -221,6 +265,8 @@ namespace cgl
 			_curNode = _root;
 			_names["node"] = NODE;
 			_names["matrix"] = MATRIX;
+			_names["translate"] = TRANSLATE;
+			_names["rotate"] = ROTATE;
 			_names["instance_camera"] = INSTANCE_CAMERA;
 			_names["instance_geometry"] = INSTANCE_GEOMETRY;
 			_names["instance_light"] = INSTANCE_LIGHT;
@@ -231,9 +277,18 @@ namespace cgl
 		{
 			return _names[name];
 		}
+		cgl::ssg::Node* getNodeByIds(std::string ids) { return _idMap[ids]; } 
+		std::map<std::string, cgl::ssg::Node*> getIdsMap() const { return _idMap; };
 
 		/// Visit an element.
-		virtual bool VisitEnter( const tinyxml2::XMLElement& element, const tinyxml2::XMLAttribute* firstAttribute )	{
+		virtual bool VisitEnter( const tinyxml2::XMLElement& element, const tinyxml2::XMLAttribute* firstAttribute )
+		{
+			std::string idPath;
+			if(const char* sid = element.Attribute("sid"))
+			{
+				idPath = _nodeIdStack.top() + "/" + std::string(sid);
+			}
+
 			switch(getElementNameId(element.Name()))
 			{
 			case NODE:
@@ -244,20 +299,34 @@ namespace cgl
 				break;
 
 			case MATRIX:
-				{
+				{					
 					float data[16];
-					{
-						
-						std::stringstream ss(element.GetText());
-						for(int i=0; i<16; ++i)
-						{
-							ss >> data[i];
-						}
-					}
-					//TODO: is COLLADA column or row major?!
+					parseFloatArray(element.GetText(), 16, data);
 					cgl::ssg::TransformationNode* transformNode = new cgl::ssg::TransformationNode(glm::transpose(glm::make_mat4(data)));
 					_curNode->addChild(transformNode);
 					_curNode = transformNode;
+				}
+				break;
+
+			case TRANSLATE:
+				{
+					float data[3];
+					parseFloatArray(element.GetText(), 3, data);
+					cgl::ssg::TransformationNode* transformNode = new cgl::ssg::TranslationNode(glm::make_vec3(data));
+					_curNode->addChild(transformNode);
+					_curNode = transformNode;
+					_idMap[idPath] = transformNode;
+				}
+				break;
+
+			case ROTATE:
+				{
+					float data[4];
+					parseFloatArray(element.GetText(), 4, data);
+					cgl::ssg::RotationNode* rotationNode = new cgl::ssg::RotationNode(glm::make_vec3(data), data[3]);
+					_curNode->addChild(rotationNode);
+					_curNode = rotationNode;
+					_idMap[idPath] = rotationNode;
 				}
 				break;
 
@@ -338,6 +407,7 @@ namespace cgl
 
 			COLLADAXMLVisitor visitor(assetLibrary);
 			visualSceneNode->Accept(&visitor);
+			_idsMap = visitor.getIdsMap();
 			assetLibrary.storeScene(id, visitor.getSceneGraphRoot());
 		}
 	}
@@ -403,6 +473,8 @@ namespace cgl
 
 	void parseEffects(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* base)
 	{
+		if(!base)
+			return;
 		for(tinyxml2::XMLElement* effectNode = base->FirstChildElement("effect"); 
 			effectNode; 
 			effectNode = effectNode->NextSiblingElement("effect"))
@@ -455,15 +527,17 @@ namespace cgl
 		prop.diffuse = color;
 		prop.ambient = color;
 		prop.specular = color;
-		prop.constantAttenuation = std::atof(pointNode->FirstChildElement("constant_attenuation")->GetText());
-		prop.linearAttenuation = std::atof(pointNode->FirstChildElement("linear_attenuation")->GetText());
-		prop.quadraticAttenuation = std::atof(pointNode->FirstChildElement("quadratic_attenuation")->GetText());
+		prop.constantAttenuation = (float) std::atof(pointNode->FirstChildElement("constant_attenuation")->GetText());
+		prop.linearAttenuation = (float) std::atof(pointNode->FirstChildElement("linear_attenuation")->GetText());
+		prop.quadraticAttenuation = (float) std::atof(pointNode->FirstChildElement("quadratic_attenuation")->GetText());
 
 		return light;
 	}
 
 	void parseLights(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* base)
 	{
+		if(!base)
+			return;
 		for(tinyxml2::XMLElement* lightNode = base->FirstChildElement("light"); 
 			lightNode; 
 			lightNode = lightNode->NextSiblingElement("light"))
@@ -487,6 +561,8 @@ namespace cgl
 
 	void parseMaterials(tinyxml2::XMLElement* base)
 	{
+		if(!base)
+			return;
 		for(tinyxml2::XMLElement* materialNode = base->FirstChildElement("material"); 
 			materialNode; 
 			materialNode = materialNode->NextSiblingElement("material"))
@@ -496,8 +572,95 @@ namespace cgl
 		}
 	}
 
+	struct AnimationSampler
+	{
+		COLLADASource* input;
+		COLLADASource* output;
+		COLLADASource* interpolation;
+	};
+
+	AnimationSampler parseSampler(tinyxml2::XMLElement* base, std::map<std::string, COLLADASource>& sources)
+	{
+		AnimationSampler sampler;
+		for(tinyxml2::XMLElement* inputNode = base->FirstChildElement("input"); 
+			inputNode; 
+			inputNode = inputNode->NextSiblingElement("input"))
+		{
+			COLLADASource* source = &sources[inputNode->Attribute("source")+1];
+			std::string semantic = inputNode->Attribute("semantic");
+			if(semantic == "INPUT")
+				sampler.input = source;
+			else if(semantic == "OUTPUT")
+				sampler.output = source;
+			else if(semantic == "INTERPOLATION")
+				sampler.interpolation = source;
+			else
+				std::cerr << "Unknown semantic of animation sampler" << std::endl;
+		}	
+		return sampler;
+	}
+
+	std::map<std::string, AnimationSampler> parseSamplers(tinyxml2::XMLElement* base, std::map<std::string, COLLADASource>& sources)
+	{
+		std::map<std::string, AnimationSampler> samplers;
+		for(tinyxml2::XMLElement* samplerNode = base->FirstChildElement("sampler"); 
+			samplerNode; 
+			samplerNode = samplerNode->NextSiblingElement("sampler"))
+		{
+			std::string id = samplerNode->Attribute("id");
+			samplers[id] = parseSampler(samplerNode, sources);
+		}	
+		return samplers;
+	}
+	
+	void parseAnimations(AnimationSystem& animationSystem, tinyxml2::XMLElement* base)
+	{
+		for(tinyxml2::XMLElement* animationNode = base->FirstChildElement("animation"); 
+			animationNode; 
+			animationNode = animationNode->NextSiblingElement("animation"))
+		{
+			std::string id = animationNode->Attribute("id");
+
+			// We assume a single output per input
+
+			// Obtain the raw source data
+			std::map<std::string, COLLADASource> sources;		
+			parseSources(animationNode, sources);
+			std::map<std::string, AnimationSampler> samplers = parseSamplers(animationNode, sources);
+
+			// Parse channels			
+			for(tinyxml2::XMLElement* channelNode = animationNode->FirstChildElement("channel"); 
+				channelNode; 
+				channelNode = channelNode->NextSiblingElement("channel"))
+			{
+				AnimationSampler sampler = samplers[channelNode->Attribute("source")+1];
+
+				cgl::SplineSampler splineSampler;
+				int samplesNum = sampler.input->getElementCount();
+				float* X = sampler.input->getDataFloat();
+				float* Y = sampler.output->getDataFloat();
+				for(int i=0; i<samplesNum-1; ++i)
+				{					
+					splineSampler.addSample(X[i], Y[i],
+						new cgl::LinearSplineSegment(X[i],Y[i],X[i+1],Y[i+1]));
+				}
+
+				// Get target
+				std::string target = channelNode->Attribute("target");
+				int tokenIndex = target.find_first_of(".");
+				std::string idFull = target.substr(0, tokenIndex);
+				std::string varName = target.substr(tokenIndex+1,target.size());
+				float* channelTarget = ((cgl::ssg::TransformationNode*) _idsMap[idFull])->getVariable(varName);
+				cgl::Animator* animator = new cgl::Animator(splineSampler, channelTarget);
+				animationSystem.addAnimation(animator);
+			}				
+		}
+	}
+
 	void parseImages(cgl::AssetLibrary& assetLibrary, tinyxml2::XMLElement* base)
 	{
+		if(!base)
+			return;
 		for(tinyxml2::XMLElement* imageNode = base->FirstChildElement("image"); 
 			imageNode; 
 			imageNode = imageNode->NextSiblingElement("visual_scene"))
@@ -520,7 +683,7 @@ namespace cgl
 		}
 	}
 	
-	void importCollada(std::string filename, AssetLibrary& assetLibrary)
+	void importCollada(std::string filename, AssetLibrary& assetLibrary, AnimationSystem* animationSystem = NULL)
 	{		
 		tinyxml2::XMLDocument doc;
 		doc.LoadFile(filename.c_str());		
@@ -535,5 +698,7 @@ namespace cgl
 		parseLights(assetLibrary, root->FirstChildElement("library_lights"));
 		parseMaterials(root->FirstChildElement("library_materials"));		
 		parseVisualScenes(assetLibrary, root->FirstChildElement("library_visual_scenes"));		
+		if(animationSystem)
+			parseAnimations(*animationSystem, root->FirstChildElement("library_animations"));		
 	}
 };
