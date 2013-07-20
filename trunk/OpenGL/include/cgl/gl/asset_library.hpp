@@ -10,6 +10,154 @@
 
 namespace cgl
 {
+	class SplineSegment
+	{
+	public:
+		virtual float calc(float time) = 0;
+
+		virtual float getEndTime() const = 0;
+		virtual float getEndValue() const = 0;
+	};
+	
+	class ConstantSplineSegment : public SplineSegment
+	{
+	public:
+		ConstantSplineSegment(float value) : _value(value) {};
+
+		virtual float calc(float time)
+		{
+			return _value;
+		}
+
+		virtual float getEndTime() const
+		{
+			return std::numeric_limits<float>::infinity();
+		}
+
+		virtual float getEndValue() const
+		{
+			_value;
+		}
+
+	protected:
+		float _value;
+	};
+
+	class LinearSplineSegment : public SplineSegment
+	{
+	public:
+		LinearSplineSegment(float x0, float y0, float x1, float y1) : _x0(x0), _x1(x1), _y0(y0), _y1(y1) 
+		{
+
+		};
+
+		virtual float calc(float time)
+		{
+			const float alpha = (time - _x0)/(_x1 - _x0);
+			return (1-alpha)*_y0 + (alpha)*_y1;
+		}
+
+		virtual float getEndTime() const
+		{
+			return _x1;
+		}
+
+		virtual float getEndValue() const
+		{
+			return _y1;
+		}
+
+	protected:
+		float _x0, _x1, _y0, _y1;
+	};
+
+	class SplineSampler
+	{
+	public:
+
+		SplineSampler() : _amount(0) {};
+
+		void addSample(float time, float value, SplineSegment* segment)
+		{
+			if(!_amount)
+			{
+				_leftmostTime = time;
+				_leftmostValue = value;
+			}
+			else
+			{
+				// Remove the final mark
+				_keyframes.pop_back();
+			}
+			//TODO: insert sorted!!!
+			_keyframes.push_back(time);
+			_keyframes.push_back(segment->getEndTime());
+			_segments.push_back(segment);
+
+			_rightmostTime = segment->getEndTime();
+			_rightmostValue = segment->getEndValue();
+			_amount++;
+		}
+
+		float calc(float time)
+		{
+			if(time < _leftmostTime)
+				return _leftmostValue;
+			for(int i=0; i<_keyframes.size()-1; ++i)
+			{
+				//TODO: binary search
+				if(time < _keyframes[i+1])
+					return _segments[i]->calc(time);
+			}
+			return _rightmostValue;
+		}
+
+	protected:
+		std::vector<float> _keyframes;
+		std::vector<SplineSegment*> _segments;
+		float _leftmostTime, _leftmostValue;
+		float _rightmostTime, _rightmostValue;
+		int _amount;
+	};
+
+	class Animator
+	{
+	public:
+
+		Animator(SplineSampler sampler, float* channel) : _sampler(sampler), _channel(channel)
+		{
+
+		}
+
+		void update(float time)
+		{
+			*_channel = _sampler.calc(time);
+		}
+	protected:
+		SplineSampler _sampler;
+		float* _channel;
+	};
+
+	class AnimationSystem
+	{
+	protected:
+		std::vector<Animator*> _animators;
+
+	public:
+		void addAnimation(Animator* animation)
+		{
+			_animators.push_back(animation);
+		}
+
+		void update(float time)
+		{
+			for(unsigned int i=0; i<_animators.size(); ++i)
+			{
+				_animators[i]->update(time);
+			}
+		}
+	};
+
 	class CommonProgram : public SpecificProgram
 	{
 	public:
@@ -461,9 +609,43 @@ namespace cgl
 			TransformationNode() : _matrix(1) {};
 			TransformationNode(glm::mat4 matrix) : _matrix(matrix) {};
 			virtual void accept(IVisitor *visitor);
-			glm::mat4 getMatrix() const { return _matrix; };
+			virtual glm::mat4 getMatrix() const { return _matrix; };
+			virtual float* getVariable(std::string) { throw std::exception("Variable name unknown"); };
 		protected:
 			glm::mat4 _matrix;
+		};
+
+		class TranslationNode : public TransformationNode
+		{
+		public:
+			TranslationNode(glm::vec3 val) : _translation(val) {};
+			virtual glm::mat4 getMatrix() const { return glm::translate(glm::mat4(), _translation); };
+			virtual glm::vec3* getTranslationPtr() { return &_translation; };
+			virtual float* getVariable(std::string varName) 
+			{ 
+				if(varName == "X")
+					return &_translation.x;
+				else if(varName == "Y")
+					return &_translation.y;
+				else if(varName == "Z")
+					return &_translation.z;
+				else
+					throw std::exception("Variable name unknown");
+			};
+		protected:
+			glm::vec3 _translation;
+		};
+
+		class RotationNode : public TransformationNode
+		{
+		public:
+			RotationNode(glm::vec3 axis, float angle) : _axis(axis), _angle(angle) {};
+			virtual glm::mat4 getMatrix() const { return glm::rotate(glm::mat4(), _angle, _axis); };
+			glm::vec3* getAxisPtr() { return &_axis; };
+			float* getAnglePtr() { return &_angle; };
+		protected:
+			glm::vec3 _axis;
+			float _angle;
 		};
 
 		class EffectInstanceNode : public GroupNode
@@ -542,6 +724,10 @@ namespace cgl
 		void initCommonAssets()
 		{
 			store("common", new cgl::CommonProgram());
+			cgl::CommonEffect* effect = new cgl::CommonEffect((cgl::CommonProgram*) getProgram("common"));
+			effect->setDiffuseColor(glm::vec4(1,0,0,1));
+			effect->setIsLighting(true);
+			store("default", effect);
 		}
 
 		AssetLibrary()
@@ -574,6 +760,11 @@ namespace cgl
 		}	
 
 		// Storing takes ownership on the object
+		void store(std::string id, cgl::Effect* effect)
+		{
+			_effects[id] = effect;
+		}	
+
 		void store(std::string id, cgl::Image* image)
 		{
 			_images[id] = image;
