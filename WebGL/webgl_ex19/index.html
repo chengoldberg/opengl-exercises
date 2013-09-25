@@ -1,0 +1,29 @@
+<html>
+<head>
+	<script type="text/javascript" src="http://code.jquery.com/jquery-latest.min.js"></script>	
+	<script type="text/javascript" src="../webgl_common/lib3rd/webgl-utils.js"></script>
+	<script type="text/javascript" src="../webgl_common/lib3rd/gl-matrix.js"></script>
+	<script type="text/javascript" src="ex19.js"></script>
+	<script type="text/javascript" src="../webgl_common/cglib/webgl-common.js"></script>
+	<script type="text/javascript" src="../webgl_common/cglib/webgl-simple-mesh.js"></script>
+	<script type="text/javascript" src="../webgl_common/cglib/webgl-container.js"></script>			
+
+</head>
+<body>
+	<h1>WebGL Exercise 19</h1>
+	<canvas 
+		id="mycanvas"
+		width="1280"
+		height="720">
+	</canvas>	
+
+	<script type="text/javascript">
+  		var canvas = jQuery("#mycanvas")[0];
+  		var container = cglib.container.extend();
+  		container.init(canvas);
+  		container.loadApp('ex19', 'ex19.js', './');		
+	</script>
+
+</body>
+</html>
+

@@ -73,7 +73,7 @@ cglib.container = {
 
 			})
 			.fail(function(jqxhr, settings, exception) {
-				alert('Failed! to load ' + jsURL + exception);
+				alert('Failed to load/eval ' + jsURL + ': ' + exception);
 			});
 	},
 
@@ -104,7 +104,7 @@ cglib.container = {
 		if(this.contextGL == undefined) {
 		    try {	    	
 		    	console.log('Asking for context');
-		        this.contextGL = this.canvas.getContext("experimental-webgl");
+		        this.contextGL = this.canvas.getContext("experimental-webgl", {alpha: false});
 		    } catch (e) {
 		    	throw("CREATE_CONTEXT_FAILED");
 		    }
