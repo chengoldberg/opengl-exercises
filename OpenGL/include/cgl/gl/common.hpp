@@ -448,3 +448,18 @@ namespace cgl
 		glDebugMessageCallback(&debugOutput, NULL);
 	}
 }
+
+
+
+
+class SimpleProgram
+{
+public:
+	void buildProgram(	const char* vertexShaderFilename, 
+						const char* fragmentShaderFilename);
+	void use();
+
+protected:
+
+	GLuint m_uiProgramId;			
+};
