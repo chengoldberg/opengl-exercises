@@ -165,9 +165,10 @@ void reshape(int width, int height) {
 
 	glViewport(0,0,width,height);
 
+	//TODO: Correct aspect ratio
 	double w,h;
 	w = 5;
-	h = 5*((double)height/width);
+	h = 5;
 	glOrtho(-w/2, w/2, -h/2, h/2, -1000, 1000);				
 }
 
@@ -211,12 +212,19 @@ void keyboardFunc(int key, int x, int y) {
 	g_curMenu = g_curMenu>3?3:g_curMenu;
 }
 
+void keyboardFunc(unsigned char key, int x, int y) {
+	switch(key) {
+	case 27:	// Quit on 'Escape' key
+		exit(0);
+	}
+}
+
 int main(int argc, char **argv) {
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-	glutInitWindowPosition(500, 500);
-	glutInitWindowSize(500, 500);
+	glutInitWindowPosition((glutGet(GLUT_SCREEN_WIDTH)-512)/2, (glutGet(GLUT_SCREEN_HEIGHT)-512)/2);
+	glutInitWindowSize(512, 512);
 
 	glutCreateWindow("ex3 - Transformations (Fractal Tree)");
 
@@ -226,6 +234,7 @@ int main(int argc, char **argv) {
 	glutMotionFunc(motionFunc);
 	glutMouseFunc(mouseFunc);
 	glutSpecialFunc(keyboardFunc);
+	glutKeyboardFunc(keyboardFunc);
 
 	//glutFullScreen();
 

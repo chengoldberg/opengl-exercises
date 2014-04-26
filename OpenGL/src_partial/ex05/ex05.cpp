@@ -337,12 +337,19 @@ void keyboardFunc(int key, int x, int y) {
 	}
 }
 
+void keyboardFunc(unsigned char key, int x, int y) {
+	switch(key) {
+	case 27:	// Quit on 'Escape' key
+		exit(0);
+	}
+}
+
 int main(int argc, char **argv) {
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-	glutInitWindowPosition(500, 500);
-	glutInitWindowSize(500, 500);
+	glutInitWindowPosition((glutGet(GLUT_SCREEN_WIDTH)-512)/2, (glutGet(GLUT_SCREEN_HEIGHT)-512)/2);
+	glutInitWindowSize(512, 512);
 
 	glutCreateWindow("ex05 - Acceleration");
 
@@ -350,6 +357,7 @@ int main(int argc, char **argv) {
 	glutDisplayFunc(display);
 	glutIdleFunc(display);
 	glutSpecialFunc(keyboardFunc);
+	glutKeyboardFunc(keyboardFunc);
 
 	glewInit();
 	init();

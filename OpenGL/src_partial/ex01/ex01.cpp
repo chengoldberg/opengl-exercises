@@ -6,10 +6,10 @@
 
 int g_frame = 0;	// Keeps track of time
 
-// ============================== Drawing methods =========================
+// ========================== Drawing methods (No need to change) =============
 
 void drawCircle(double x, double y, double s) {
-
+	
 	glPushMatrix();
 
 	glTranslated(x, y, 0);
@@ -140,6 +140,13 @@ void timer(int value) {
 	glutTimerFunc(16,timer,0);
 }
 
+void keyboardFunc(unsigned char key, int x, int y) {
+	switch(key) {
+	case 27:	// Quit on 'Escape' key
+		exit(0);
+	}
+}
+
 /*  
 *  Main Loop
 *  Open window with initial window size, title bar, 
@@ -149,13 +156,14 @@ int main(int argc, char **argv) {
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-	glutInitWindowPosition(500, 500);
-	glutInitWindowSize(500, 500);
+	glutInitWindowPosition((glutGet(GLUT_SCREEN_WIDTH)-512)/2, (glutGet(GLUT_SCREEN_HEIGHT)-512)/2);
+	glutInitWindowSize(512, 512);
 	glutCreateWindow("ex01 - States & Basic Drawing");
 
 	glutReshapeFunc(reshape);
 	glutDisplayFunc(display);
 	glutIdleFunc(display);
+	glutKeyboardFunc(keyboardFunc);
 
 	glutTimerFunc(16,timer,0);
 

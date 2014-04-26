@@ -341,12 +341,19 @@ void timer(int value) {
 	glutTimerFunc(UPDATE_INTERVAL_MS,timer,0);
 }
 
+void keyboardFunc(unsigned char key, int x, int y) {
+	switch(key) {
+	case 27:	// Quit on 'Escape' key
+		exit(0);
+	}
+}
+
 int main(int argc, char **argv) {
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-	glutInitWindowPosition(500, 500);
-	glutInitWindowSize(500, 500);
+	glutInitWindowPosition((glutGet(GLUT_SCREEN_WIDTH)-512)/2, (glutGet(GLUT_SCREEN_HEIGHT)-512)/2);
+	glutInitWindowSize(512, 512);
 
 	glutCreateWindow("ex06 - Textures");
 
@@ -356,6 +363,7 @@ int main(int argc, char **argv) {
 	glutSpecialFunc(keyboardFunc);
 	glutSpecialUpFunc(keyboardUpFunc);
 	glutTimerFunc(UPDATE_INTERVAL_MS,timer,0);
+	glutKeyboardFunc(keyboardFunc);
 
 	glewInit();
 	if (glewIsSupported("GL_VERSION_2_0"))
