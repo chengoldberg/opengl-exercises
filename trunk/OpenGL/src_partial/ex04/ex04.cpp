@@ -256,12 +256,19 @@ void timer(int value) {
 	glutPostRedisplay();
 }
 
+void keyboardFunc(unsigned char key, int x, int y) {
+	switch(key) {
+	case 27:	// Quit on 'Escape' key
+		exit(0);
+	}
+}
+
 int main(int argc, char **argv) {
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-	glutInitWindowPosition(500, 500);
-	glutInitWindowSize(500, 500);
+	glutInitWindowPosition((glutGet(GLUT_SCREEN_WIDTH)-512)/2, (glutGet(GLUT_SCREEN_HEIGHT)-512)/2);
+	glutInitWindowSize(512, 512);
 
 	glutCreateWindow("ex04 - Lights");
 
@@ -270,6 +277,7 @@ int main(int argc, char **argv) {
 	//glutIdleFunc(display);
 	glutSpecialFunc(keyboardFunc);
 	glutSpecialUpFunc(keyboardUpFunc);
+	glutKeyboardFunc(keyboardFunc);
 	glutTimerFunc(UPDATE_INTERVAL_MS,timer,0);
 
 	//glutFullScreen();

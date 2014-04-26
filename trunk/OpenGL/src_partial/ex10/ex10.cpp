@@ -29,7 +29,7 @@ HWND g_hWnd[] = {NULL,NULL};
 HGLRC g_hRC[] = {NULL,NULL};    // Permanent rendering context
 HDC g_hDC[] = {NULL,NULL};      // Private GDI device context
 
-LPCWSTR lpszAppName = (LPCWSTR) "tester";
+LPCWSTR lpszAppName = (LPCWSTR) L"tester";
 
 void myChangeSize(WORD width, WORD height) {
 	glViewport(0,0,width,height);
