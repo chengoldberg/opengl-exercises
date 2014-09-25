@@ -22,12 +22,17 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 #include <string>
+#include <iostream>
 #include "glm/glm.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/color_space.hpp>
+#include <glm/gtc/random.hpp>
+#include <vector>
 
 #define BUFFER_OFFSET(bytes)  ((GLubyte*) NULL + (bytes))
-#define VERTICES_AMOUNT 8
+#define MAX_VERTICES_AMOUNT_EXPONENT 20
+#define VERTICES_AMOUNT (1<<MAX_VERTICES_AMOUNT_EXPONENT)
 struct Point
 {
 	int x,y;
@@ -56,10 +61,12 @@ enum EVbo
 Point g_prevMouse;
 double g_rotY;
 double g_rotX;
-GLuint g_program, g_attribPosition, g_attribColor, g_uniformModelViewMatrix, g_uniformProjectionMatrix;
+float g_particleSpeed;
+bool g_particleMotionEnabled;
+int g_drawVerticesAmountExponent;
+GLuint g_program, g_attribPosition, g_attribColor, g_attribDirection, g_uniformModelViewMatrix, g_uniformProjectionMatrix, g_uniformSpeed;
 GLuint g_vbo[VBO_TOTAL];
 GLuint g_vao[VAO_TOTAL];
-GLuint g_vbFeedback;
 glm::mat4 g_modelView(1), g_projection;
 
 /*
@@ -139,8 +146,8 @@ GLuint createProgramFast(const char* srcVert, const char* srcFrag) {
 	glAttachShader(program, fsId);
 
 	// Declare transform feedback variables
-	const GLchar* names[] = {"oPosition"};
-	glTransformFeedbackVaryings(program, 1, names, GL_INTERLEAVED_ATTRIBS); // Write to a single buffer
+	const GLchar* names[] = {"oPosition", "oDirection"};
+	glTransformFeedbackVaryings(program, 2, names, GL_SEPARATE_ATTRIBS); // Write to a single buffer
 
 	// Now ready to link (since oPosition target is bound)
 	glLinkProgram(program);
@@ -151,7 +158,7 @@ GLuint createProgramFast(const char* srcVert, const char* srcFrag) {
 		printf("Failed to create program from shaders");
 		return 0;
 	} else {
-		printf("Program created!");
+		printf("Program created!\n");
 	}
 
 	return program;
@@ -159,17 +166,16 @@ GLuint createProgramFast(const char* srcVert, const char* srcFrag) {
 
 void initVertexBufferObjects()
 {
-	float vertices[VERTICES_AMOUNT][3];
-	float colors[VERTICES_AMOUNT][3];
+	// Set initial states for particles (allocate on heap because might be too big fro stack)
+	std::vector<glm::vec3> vertices(VERTICES_AMOUNT);
+	std::vector<glm::vec3> directions(VERTICES_AMOUNT);
+	std::vector<glm::vec3> colors(VERTICES_AMOUNT);
 
 	for(int i=0; i<VERTICES_AMOUNT; ++i)
 	{
-		vertices[i][0] = 2*static_cast<float>(rand())/RAND_MAX-1;
-		vertices[i][1] = 2*static_cast<float>(rand())/RAND_MAX-1;
-		vertices[i][2] = 2*static_cast<float>(rand())/RAND_MAX-1;
-		colors[i][0] = static_cast<float>(rand())/RAND_MAX;
-		colors[i][1] = static_cast<float>(rand())/RAND_MAX;
-		colors[i][2] = static_cast<float>(rand())/RAND_MAX;		
+		vertices[i] = glm::linearRand(glm::vec3(-1,-1,-1),glm::vec3(1,1,1));	
+		directions[i] = glm::normalize(glm::ballRand(2.0f));		
+		colors[i] = glm::rgbColor(glm::vec3(360*static_cast<float>(rand())/RAND_MAX,1,1));
 	}
 
 	// Create identifiers
@@ -177,13 +183,18 @@ void initVertexBufferObjects()
 
 	// Transfer data
 	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_POSITION_0]);
-	glBufferData(GL_ARRAY_BUFFER, VERTICES_AMOUNT*3*sizeof(float), vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, VERTICES_AMOUNT*3*sizeof(float), vertices.data(), GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_DIRECTION_0]);
+	glBufferData(GL_ARRAY_BUFFER, VERTICES_AMOUNT*3*sizeof(float), directions.data(), GL_STATIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_COLOR]);
-	glBufferData(GL_ARRAY_BUFFER, VERTICES_AMOUNT*3*sizeof(float), colors, GL_STATIC_DRAW);	
+	glBufferData(GL_ARRAY_BUFFER, VERTICES_AMOUNT*3*sizeof(float), colors.data(), GL_STATIC_DRAW);	
 
-	// Allocate data
+	// Allocate data for "double buffer"
 	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_POSITION_1]);
 	glBufferData(GL_ARRAY_BUFFER, VERTICES_AMOUNT*3*sizeof(float), NULL, GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_DIRECTION_1]);
+	glBufferData(GL_ARRAY_BUFFER, VERTICES_AMOUNT*3*sizeof(float), NULL, GL_STATIC_DRAW);
+
 }
 
 void initVertexArrayObjects()
@@ -191,59 +202,68 @@ void initVertexArrayObjects()
 	// Keep all vertex attribute states in VAO
 	glGenVertexArrays(2, g_vao);
 
+	// Define the two drawing states
 	glBindVertexArray(g_vao[VAO_VERTEX_0]);
+	{
+		glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_POSITION_0]);
+		glVertexAttribPointer(g_attribPosition, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));
 
-	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_POSITION_0]);
-	glVertexAttribPointer(g_attribPosition, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));
+		glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_DIRECTION_0]);
+		glVertexAttribPointer(g_attribDirection, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));
 
-	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_COLOR]);
-	glVertexAttribPointer(g_attribColor, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));	
+		glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_COLOR]);
+		glVertexAttribPointer(g_attribColor, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));	
 
-	glEnableVertexAttribArray(g_attribPosition);
-	glEnableVertexAttribArray(g_attribColor);		
-
+		glEnableVertexAttribArray(g_attribPosition);
+		glEnableVertexAttribArray(g_attribDirection);
+		glEnableVertexAttribArray(g_attribColor);		
+	}
 	glBindVertexArray(0);
-
 
 	glBindVertexArray(g_vao[VAO_VERTEX_1]);
+	{
+		glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_POSITION_1]);
+		glVertexAttribPointer(g_attribPosition, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));
 
-	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_POSITION_1]);
-	glVertexAttribPointer(g_attribPosition, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));
+		glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_DIRECTION_1]);
+		glVertexAttribPointer(g_attribDirection, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));
 
-	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_COLOR]);
-	glVertexAttribPointer(g_attribColor, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));	
+		glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_COLOR]);
+		glVertexAttribPointer(g_attribColor, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));	
 
-	glEnableVertexAttribArray(g_attribPosition);
-	glEnableVertexAttribArray(g_attribColor);		
-
+		glEnableVertexAttribArray(g_attribPosition);
+		glEnableVertexAttribArray(g_attribDirection);
+		glEnableVertexAttribArray(g_attribColor);		
+	}
 	glBindVertexArray(0);
 }
-/**
- * Draw a unit size RGB cube
- */
-void drawRGBCube() 
+
+void drawAndProcessParticles() 
 {
-	static int counter = -1;
-	counter += 1;
+	static int s_drawCounter = -1;
+	s_drawCounter += 1;
 
-	GLuint currentVbo;
-	GLuint currentVao;
+	GLuint feedbackPositionVbo, feedbackDirectionVbo;
+	GLuint drawVao;
 
-	if(counter % 2 == 0)
+	if(s_drawCounter % 2 == 0)
 	{
-		currentVao = VAO_VERTEX_0;
-		currentVbo = VBO_POSITION_1;
+		drawVao = VAO_VERTEX_0;
+		feedbackPositionVbo = VBO_POSITION_1;
+		feedbackDirectionVbo = VBO_DIRECTION_1;
 	}
 	else
 	{
-		currentVao = VAO_VERTEX_1;
-		currentVbo = VBO_POSITION_0;
+		drawVao = VAO_VERTEX_1;
+		feedbackPositionVbo = VBO_POSITION_0;
+		feedbackDirectionVbo = VBO_DIRECTION_0;
 	}
-	glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, g_vbo[currentVbo]);
+	glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, g_vbo[feedbackPositionVbo]);
+	glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 1, g_vbo[feedbackDirectionVbo]);
 	glBeginTransformFeedback(GL_POINTS);
 
-	glBindVertexArray(g_vao[currentVao]);
-	glDrawArrays(GL_POINTS, 0, VERTICES_AMOUNT);				
+	glBindVertexArray(g_vao[drawVao]);
+	glDrawArrays(GL_POINTS, 0, 1<<g_drawVerticesAmountExponent);				
 	glBindVertexArray(0);
 
 	glEndTransformFeedback();
@@ -255,16 +275,27 @@ void initShaders() {
 		"#version 330\n"
 		"out vec4  vColor;\n"
 		"in vec3 aPosition;\n"
+		"in vec3 aDirection;\n"
 		"in vec3 aColor;\n"
 		"uniform mat4 uModelViewMatrix;\n"
 		"uniform mat4 uProjectionMatrix;\n"
+		"uniform float uSpeed;\n"
 		"out vec3 oPosition;\n"
+		"out vec3 oDirection;\n"
 		"\n"
 		"void main()\n"
 		"{\n"
 		"	vColor = vec4(aColor,1);\n"
 		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition,1);\n"
-		"	oPosition = aPosition + vec3(1,1,1)*0.001;\n"
+		"	oPosition = aPosition + aDirection*uSpeed;\n"
+		"	if(length(oPosition) < 2)\n"
+		"		oDirection = aDirection;\n"
+		"	else\n"
+		"	{\n"
+		"		vec3 normal = normalize(oPosition);"
+		"		oPosition = normal*2;\n"
+		"		oDirection = reflect(normalize(aDirection), normal);\n"
+		"	}\n"
 		"}\n";
 
 	const char* srcFrag = 
@@ -279,19 +310,28 @@ void initShaders() {
 
 	g_program = createProgramFast(srcVert, srcFrag);	
 	g_attribPosition = glGetAttribLocation(g_program, "aPosition");
+	g_attribDirection = glGetAttribLocation(g_program, "aDirection");
 	g_attribColor = glGetAttribLocation(g_program, "aColor");
 	g_uniformModelViewMatrix = glGetUniformLocation(g_program, "uModelViewMatrix");
 	g_uniformProjectionMatrix = glGetUniformLocation(g_program, "uProjectionMatrix");
+	g_uniformSpeed = glGetUniformLocation(g_program, "uSpeed");
 }
 
 
 void init() 
 {
+	g_drawVerticesAmountExponent = MAX_VERTICES_AMOUNT_EXPONENT;
+	g_particleMotionEnabled = true;
+	g_particleSpeed = 0.001f;
+
 	// Init shaders
 	initShaders();
 
 	// Set background color to gray
-	glClearColor(0.5f, 0.5f, 0.5f, 0);
+	glClearColor(0, 0, 0, 0);
+
+	// Init states		
+	glPointSize(2);
 
 	// Place camera at (0,0,10)
 	g_modelView = glm::translate(g_modelView, glm::vec3(0,0,-10));
@@ -335,13 +375,11 @@ void display(void)
 	// Save camera transformation
 	glm::mat4 saveMat = g_modelView;
 
-	// Init states		
-	glPointSize(5);
-
-	// Draw Line RGB cube
-	g_modelView = glm::translate(g_modelView, glm::vec3(0,0,0));
-	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));
-	drawRGBCube();
+	// Update model-view matrix
+	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));	
+	// Update particles speed
+	glUniform1f(g_uniformSpeed, g_particleSpeed*static_cast<float>(g_particleMotionEnabled));	
+	drawAndProcessParticles();
 
 	// Load camera transformation
 	g_modelView = saveMat;
@@ -356,8 +394,8 @@ void reshape(int width, int height) {
 	glViewport(0,0,width,height);
 
 	float w,h;
-	w = 10;
-	h = 10*((float)height/width);	
+	w = 4;
+	h = 4*((float)height/width);	
 	g_projection = glm::ortho(-w/2.0f, w/2.0f, -h/2.0f, h/2.0f, -1.0f, 1000.0f);
 
 	// Create projection transformation	
@@ -378,12 +416,56 @@ void motionFunc(int x, int y) {
 
 	// Remember mouse location 
 	g_prevMouse = Point(x,y);	
+
+	// Don't move particles during mouse move
+	g_particleMotionEnabled = false;
 }
 
 void mouseFunc(int button, int state, int x, int y) {
 	if(button == GLUT_LEFT_BUTTON){
 		g_prevMouse = Point(x,y);	
 	}
+	// Resume particles motion
+	g_particleMotionEnabled = true;
+}
+
+void keyboardSpecialFunc(int key, int x, int y) 
+{
+	switch(key) {
+	case GLUT_KEY_DOWN: 
+		g_particleSpeed -= 0.001f;
+		break;
+	case GLUT_KEY_UP:
+		g_particleSpeed += 0.001f;
+		break;
+	case GLUT_KEY_LEFT:
+		g_drawVerticesAmountExponent = std::max<int>(g_drawVerticesAmountExponent-1, 0);
+		std::cout << "Vertices drawn: " << (1<<g_drawVerticesAmountExponent) << std::endl;
+		break;
+	case GLUT_KEY_RIGHT:
+		g_drawVerticesAmountExponent = std::min<int>(g_drawVerticesAmountExponent+1, MAX_VERTICES_AMOUNT_EXPONENT);
+		std::cout << "Vertices drawn: " << (1<<g_drawVerticesAmountExponent) << std::endl;
+		break;
+	}
+}
+
+void keyboardFunc(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case 27:	// Escape key
+		exit(0);
+		break;
+
+	default:
+		break;
+	}
+}
+
+void timer(int value) 
+{
+	glutPostRedisplay();
+	glutTimerFunc(16,timer,0);
 }
 
 int main(int argc, char **argv) {
@@ -394,16 +476,18 @@ int main(int argc, char **argv) {
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-	glutInitWindowPosition(500, 500);
-	glutInitWindowSize(500, 500);
+	glutInitWindowPosition(0, 0);
+	glutInitWindowSize(512, 512);
 
-	glutCreateWindow("ex2 - Drawing RGB Cube - Core profile");
+	glutCreateWindow("ex21 - Particles Feedback");
 
 	glutReshapeFunc(reshape);
-	glutDisplayFunc(display);
-	glutIdleFunc(display);
+	glutDisplayFunc(display);	
 	glutMotionFunc(motionFunc);
 	glutMouseFunc(mouseFunc);
+	glutSpecialFunc(keyboardSpecialFunc);
+	glutKeyboardFunc(keyboardFunc);
+	glutTimerFunc(16,timer,0);
 	//glutInit
 	//glutFullScreen();
 
@@ -413,6 +497,11 @@ int main(int argc, char **argv) {
 	glewInit();
 
 	init();
+
+	std::cout << "Usage:" << std::endl;
+	std::cout << "left arrow/right arrow		Draw and process less/more particles" << std::endl;
+	std::cout << "down arrow/up arrow			Speed up or down particles" << std::endl;
+	std::cout << "Use mouse to look around" << std::endl;
 
 	glutMainLoop();
 
