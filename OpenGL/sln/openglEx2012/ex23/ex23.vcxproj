@@ -13,6 +13,9 @@
   <ItemGroup>
     <ClCompile Include="..\..\..\src\ex23\ex23.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\res\shader\ex23.geom" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{A071C646-C82D-4992-A8E3-EE87C6EE0DCB}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
