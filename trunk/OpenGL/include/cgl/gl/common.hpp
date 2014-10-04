@@ -182,6 +182,7 @@ namespace cgl
 		unsigned int componentsNum;		
 		GLuint hostBufferId;
 		bool isConstant;
+		GLuint type;
 	};
 
 	class SimpleMesh
@@ -212,7 +213,7 @@ namespace cgl
 			_faces = faces;
 		}
 
-		SimpleMesh* addAttrib(std::string name, unsigned int componentsNum, void* clientBufferPtr, int bufferSize)
+		SimpleMesh* addAttrib(std::string name, unsigned int componentsNum, void* clientBufferPtr, int bufferSize, GLuint type = GL_FLOAT)
 		{
 			if(_attribs.empty())
 			{
@@ -226,7 +227,8 @@ namespace cgl
 			attrib.clientBufferSize = bufferSize;
 			attrib.name = name;
 			attrib.componentsNum = componentsNum;
-		
+			attrib.type = type;
+
 			_attribs.push_back(attrib);
 
 			return this;
@@ -295,7 +297,11 @@ namespace cgl
 				Attrib& attrib = _attribs[i];
 				glBindBuffer(GL_ARRAY_BUFFER, attrib.hostBufferId);
 				glEnableVertexAttribArray(_attribLocs[i]);
-				glVertexAttribPointer(_attribLocs[i], attrib.componentsNum, GL_FLOAT, false, 0, BUFFER_OFFSET(0));					
+				if(attrib.type == GL_UNSIGNED_INT)
+					glVertexAttribIPointer(_attribLocs[i], attrib.componentsNum, attrib.type, 0, BUFFER_OFFSET(0));					
+				else
+					glVertexAttribPointer(_attribLocs[i], attrib.componentsNum, attrib.type, false, 0, BUFFER_OFFSET(0));					
+				
 				glBindBuffer(GL_ARRAY_BUFFER, 0);
 			}
 
@@ -447,6 +453,47 @@ namespace cgl
 		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
 		glDebugMessageCallback(&debugOutput, NULL);
 	}
+
+	int checkProgramInfoLog(GLuint prog) 
+	{
+		int len = 0, read = 0;
+		std::string log;
+		glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &len);
+		if (len > 0)
+		{
+			log.resize(len);
+			glGetProgramInfoLog(prog, len, &read, (GLchar*) log.data());
+			printf("Program Info Log:\n%s\n", log.c_str());
+		}
+		int ret;
+		glGetProgramiv(prog, GL_LINK_STATUS, &ret);
+	
+		return ret;
+	}
+
+	bool checkShaderCompilationStatus(GLuint shader)
+	{
+		// Check if compilation successful
+		GLint isCompiled = 0;
+		glGetShaderiv(shader, GL_COMPILE_STATUS, &isCompiled);
+		std::cout << "Compilation " << (isCompiled?"successful":"failed") << std::endl;
+
+		// Check compilation log for errors and warnings
+		GLint logLength = 0;	
+		glGetShaderiv(shader, GL_INFO_LOG_LENGTH , &logLength);       
+		if (logLength > 1)
+		{
+			GLsizei actualLogLength = 0;
+			std::vector<GLchar> logString(logLength);
+			glGetShaderInfoLog(shader, logLength, &actualLogLength, logString.data());
+			std::cout 
+				<< "Compiler log:" 
+				<< std::string(logString.begin(), logString.begin()+actualLogLength) 
+				<< std::endl;
+		}
+		return isCompiled == 1;
+	}
+
 }
 
 
