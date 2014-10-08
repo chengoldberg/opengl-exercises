@@ -33,7 +33,7 @@
 #define BUFFER_OFFSET(bytes)  ((GLubyte*) NULL + (bytes))
 #define MAX_VERTICES_AMOUNT_EXPONENT 15
 #define VERTICES_AMOUNT (1<<MAX_VERTICES_AMOUNT_EXPONENT)
-#define GEOMETRY_SHADER_FILENAME "../res/shader/ex24_simple.geom"
+#define GEOMETRY_SHADER_FILENAME "../res/shader/ex24.geom"
 
 enum EVao
 {
@@ -122,6 +122,13 @@ void initVertexBufferObjects()
 	g_vertices.push_back(glm::vec3(1,1,0));
 	g_vertices.push_back(glm::vec3(3,1,0));
 	g_vertices.push_back(glm::vec3(3,4,0));
+	g_vertices.push_back(glm::vec3(0,3,0));
+	g_vertices.push_back(glm::vec3(-1,3.5,0));
+	g_vertices.push_back(glm::vec3(-2,1.5,0));
+	g_vertices.push_back(glm::vec3(-3,0,0));
+	g_vertices.push_back(glm::vec3(-2,-1,0));
+	g_vertices.push_back(glm::vec3(-2,0,0));
+	g_vertices.push_back(glm::vec3(-1,0,0));
 
 	// Create identifiers
 	glGenBuffers(VBO_TOTAL, g_vbo);
@@ -148,7 +155,8 @@ void drawLines()
 {
 	glBindVertexArray(g_vao[VAO_VERTEX]);
 	{
-		glDrawArrays(GL_LINE_STRIP, 0, g_vertices.size());				
+		//glDrawArrays(GL_LINE_STRIP, 0, g_vertices.size());				
+		glDrawArrays(GL_LINE_STRIP_ADJACENCY, 0, g_vertices.size());						
 	}
 	glBindVertexArray(0);
 }
@@ -168,10 +176,12 @@ void initShaders() {
 	const char* srcFrag = 
 		"#version 330\n"
 		"out vec4 oColor;\n"
+		"in vec4 gColor;\n"
 		"\n"
 		"void main()\n"
 		"{\n"
-		"	oColor = vec4(1,1,1,1);\n"
+		"	//oColor = vec4(1,1,1,1);\n"
+		"	oColor = gColor;\n"
 		"}\n";
 
 	std::string srcGeomStr = cgl::Shader::readFile(GEOMETRY_SHADER_FILENAME);
