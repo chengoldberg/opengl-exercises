@@ -31,8 +31,9 @@
 #include "cgl/gl/common.hpp"
 
 #define BUFFER_OFFSET(bytes)  ((GLubyte*) NULL + (bytes))
-#define MAX_VERTICES_AMOUNT_EXPONENT 7
+#define MAX_VERTICES_AMOUNT_EXPONENT 15
 #define VERTICES_AMOUNT (1<<MAX_VERTICES_AMOUNT_EXPONENT)
+#define GEOMETRY_SHADER_FILENAME "../res/shader/ex23.geom"
 
 enum EVao
 {
@@ -47,6 +48,10 @@ enum EVbo
 	VBO_TOTAL
 };
 
+bool g_wireframeEnabled;
+bool g_blendEnabled;
+bool g_zoomMode;
+float g_cameraTrasnlation;
 glm::ivec2 g_prevMouse;
 glm::ivec2 g_cameraRotationXY;
 float g_particleSpeed;
@@ -70,7 +75,7 @@ void rotate(double x, double y)
 
 // ============================== Helper Functions =========================
 
-GLuint createProgramFast(const char* srcVert, const char* srcFrag) {
+GLuint buildProgram(const char* srcVert, const char* srcGeom, const char* srcFrag) {
 
 	printf("\nCreating program");
 
@@ -80,6 +85,11 @@ GLuint createProgramFast(const char* srcVert, const char* srcFrag) {
 	glShaderSource(vsId, 1, (const GLchar**) &srcVert, NULL);
 	glCompileShader(vsId);
 	OK = OK && cgl::checkShaderCompilationStatus(vsId);
+
+	GLuint gsId = glCreateShader(GL_GEOMETRY_SHADER);
+	glShaderSource(gsId, 1, (const GLchar**) &srcGeom, NULL);
+	glCompileShader(gsId);
+	OK = OK && cgl::checkShaderCompilationStatus(gsId);
 	
 	GLuint fsId = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(fsId, 1, (const GLchar**) &srcFrag, NULL);
@@ -94,6 +104,7 @@ GLuint createProgramFast(const char* srcVert, const char* srcFrag) {
 
 	GLuint program = glCreateProgram();
 	glAttachShader(program, vsId);
+	glAttachShader(program, gsId);
 	glAttachShader(program, fsId);
 
 	// Now ready to link 
@@ -173,26 +184,27 @@ void initShaders() {
 		"in vec3 aPosition;\n"
 		"in vec3 aColor;\n"
 		"uniform mat4 uModelViewMatrix;\n"
-		"uniform mat4 uProjectionMatrix;\n"
 		"uniform float uSpeed;\n"
 		"\n"
 		"void main()\n"
 		"{\n"
 		"	vColor = vec4(aColor,1);\n"
-		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition,1);\n"
+		"	gl_Position = uModelViewMatrix * vec4(aPosition,1);\n"
 		"}\n";
 
 	const char* srcFrag = 
 		"#version 330\n"
-		"in vec4  vColor;\n"
+		"in vec4  gColor;\n"
 		"out vec4 oColor;\n"
 		"\n"
 		"void main()\n"
 		"{\n"
-		"	oColor = vColor;\n"
+		"	oColor = gColor;\n"
 		"}\n";
 
-	g_program = createProgramFast(srcVert, srcFrag);	
+	std::string srcGeomStr = cgl::Shader::readFile(GEOMETRY_SHADER_FILENAME);
+
+	g_program = buildProgram(srcVert, srcGeomStr.c_str(), srcFrag);	
 	g_attribPosition = glGetAttribLocation(g_program, "aPosition");
 	g_attribColor = glGetAttribLocation(g_program, "aColor");
 	g_uniformModelViewMatrix = glGetUniformLocation(g_program, "uModelViewMatrix");
@@ -202,9 +214,10 @@ void initShaders() {
 
 
 void init() 
-{
-	glEnable(GL_DEPTH_TEST);
+{	
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+	g_zoomMode = false;
 	g_drawVerticesAmountExponent = MAX_VERTICES_AMOUNT_EXPONENT;
 	g_particleMotionEnabled = true;
 	g_particleSpeed = 0.001f;
@@ -218,7 +231,7 @@ void init()
 	// Init states		
 	glPointSize(2);
 
-	// Place camera at (0,0,10)
+	// Place camera	
 	g_modelView = glm::translate(g_modelView, glm::vec3(0,0,-1.5));
 
 	// Init feedback vertex data
@@ -234,6 +247,8 @@ void init()
 */
 void setupCamera() 
 {	
+	g_modelView[3] *= 1+g_cameraTrasnlation;
+
 	glm::vec3 vecY(g_modelView[0][1], g_modelView[1][1], g_modelView[2][1]);
 	g_modelView = glm::rotate(g_modelView, (float)-g_cameraRotationXY.x, vecY);
 
@@ -241,6 +256,7 @@ void setupCamera()
 	g_modelView = glm::rotate(g_modelView, (float)-g_cameraRotationXY.y, vecX);
 
 	g_cameraRotationXY = glm::ivec2(0,0);
+	g_cameraTrasnlation = 0;
 }
 
 void display(void) 
@@ -248,15 +264,26 @@ void display(void)
 	// Clear FrameBuffer
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);		
 
+	if(g_blendEnabled)
+	{
+		glEnable(GL_BLEND);
+		glDisable(GL_DEPTH_TEST);
+	}
+	else
+	{
+		glEnable(GL_DEPTH_TEST);
+		glDisable(GL_BLEND);
+	}
+	glPolygonMode(GL_FRONT_AND_BACK, g_wireframeEnabled?GL_LINE:GL_FILL);
+	
 	// Apply shaders
 	glUseProgram(g_program);
 
 	// Create camera transformation
 	setupCamera();		
-
 	// Save camera transformation
 	glm::mat4 saveMat = g_modelView;
-
+	
 	// Update model-view matrix
 	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));	
 	// Update particles speed
@@ -275,10 +302,8 @@ void reshape(int width, int height) {
 	// Setup viewport
 	glViewport(0,0,width,height);
 
-	float w,h;
-	w = 4;
-	h = 4*((float)height/width);	
-	g_projection = glm::perspective(90.0f, (float)height/width, 0.1f, 10.0f);
+	// Setup projection transformation
+	g_projection = glm::perspective(90.0f, (float)width/height, 0.01f, 10.0f);
 
 	// Create projection transformation	
 	glUseProgram(g_program); // Remember to use program when setting variables
@@ -293,8 +318,15 @@ void motionFunc(int x, int y)
 	int dx = prev.x - x;
 	int dy = prev.y - y;
 
-	// Rotate model
-	rotate(dx, dy);
+	if(g_zoomMode)
+	{
+		g_cameraTrasnlation += dy/100.0f;
+	}
+	else
+	{
+		// Rotate model
+		rotate(dx, dy);
+	}
 
 	// Remember mouse location 
 	g_prevMouse = glm::ivec2(x,y);	
@@ -307,8 +339,15 @@ void mouseFunc(int button, int state, int x, int y)
 {
 	if(button == GLUT_LEFT_BUTTON)
 	{
+		g_zoomMode = false;
+		g_prevMouse = glm::ivec2(x,y);			
+	}
+	if(button == GLUT_RIGHT_BUTTON)
+	{
+		g_zoomMode = true;
 		g_prevMouse = glm::ivec2(x,y);	
 	}
+
 	// Resume particles motion
 	g_particleMotionEnabled = true;
 }
@@ -329,6 +368,12 @@ void keyboardSpecialFunc(int key, int x, int y)
 	case GLUT_KEY_RIGHT:
 		g_drawVerticesAmountExponent = std::min<int>(g_drawVerticesAmountExponent+1, MAX_VERTICES_AMOUNT_EXPONENT);
 		std::cout << "Vertices drawn: " << (1<<g_drawVerticesAmountExponent) << std::endl;
+		break;
+	case GLUT_KEY_F1:
+		g_blendEnabled ^= true;
+		break;
+	case GLUT_KEY_F2:
+		g_wireframeEnabled ^= true;
 		break;
 	}
 }
@@ -363,7 +408,7 @@ int main(int argc, char **argv) {
 	glutInitWindowPosition(0, 0);
 	glutInitWindowSize(512, 512);
 
-	glutCreateWindow("ex21 - Particles Feedback");
+	glutCreateWindow("ex23 - Geometry Shader Circle Points");
 
 	glutReshapeFunc(reshape);
 	glutDisplayFunc(display);	

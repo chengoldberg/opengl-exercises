@@ -28,8 +28,8 @@ void main()
 	vec4 colorZeroAlpha = vec4(colorOpaque.rgb,0);
 	vec4 center = gl_in[0].gl_Position;	
 
-	float r = 0.01;
-	float alpha = clamp(1-(-center.z/3.0), 0, 1);
+	float r = 0.05;
+	float alpha = clamp(1-(-center.z/2.0), 0, 1);
 	int d = int(40*alpha+(1-alpha)*4);
 	
 	float radStep = 2*M_PI/d;

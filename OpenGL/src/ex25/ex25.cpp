@@ -30,10 +30,14 @@
 #include <vector>
 #include "cgl/gl/common.hpp"
 
+#include "CTargaImage.h"
+#include "CTargaImage.cpp"
+
 #define BUFFER_OFFSET(bytes)  ((GLubyte*) NULL + (bytes))
-#define MAX_VERTICES_AMOUNT_EXPONENT 15
-#define VERTICES_AMOUNT (1<<MAX_VERTICES_AMOUNT_EXPONENT)
 #define GEOMETRY_SHADER_FILENAME "../res/shader/ex24.geom"
+
+#define MESH_FILEPATH "../res/mesh/sphere.off"
+#define TEX_FILEPATH "../res/tex_2d/tomb.tga"
 
 enum EVao
 {
@@ -41,26 +45,44 @@ enum EVao
 	VAO_TOTAL
 };
 
-enum EVbo
+enum EBufferObject
 {
 	VBO_POSITION,
-	VBO_TOTAL
+	EBO_TRIANGLES,
+	BUFFER_OBJECTS_TOTAL
+};
+
+enum ETextureObjects
+{
+	TEX_FROM_FILE,
+	TEXTURE_OBJECTS_TOTAL
 };
 
 bool g_wireframeEnabled;
 bool g_blendEnabled;
 bool g_zoomMode;
 glm::ivec2 g_prevMouse;
-GLuint g_program, g_attribPosition, g_uniformModelViewMatrix, g_uniformProjectionMatrix;
-GLuint g_vbo[VBO_TOTAL];
+GLuint g_program, g_attribPosition, g_uniformModelViewMatrix, g_uniformProjectionMatrix, g_uniformTexture;
+GLuint g_vbo[BUFFER_OBJECTS_TOTAL];
 GLuint g_vao[VAO_TOTAL];
 GLuint g_fbo;
+int g_totalElements;
 glm::mat4 g_modelView(1), g_projection;
 std::vector<glm::vec3> g_vertices;
+glm::ivec2 g_cameraRotationXY;
+float g_cameraTranslation;
+GLuint g_textures[TEXTURE_OBJECTS_TOTAL];
+glm::ivec2 g_texSize;
+
+void rotate(double x, double y) 
+{
+	g_cameraRotationXY.x += x;
+	g_cameraRotationXY.y += y;
+}
 
 // ============================== Helper Functions =========================
 
-GLuint buildProgram(const char* srcVert, const char* srcGeom, const char* srcFrag) 
+GLuint buildProgram(const char* srcVert, const char* srcFrag) 
 {
 	printf("\nCreating program");
 
@@ -71,11 +93,6 @@ GLuint buildProgram(const char* srcVert, const char* srcGeom, const char* srcFra
 	glCompileShader(vsId);
 	OK = OK && cgl::checkShaderCompilationStatus(vsId);
 
-	GLuint gsId = glCreateShader(GL_GEOMETRY_SHADER);
-	glShaderSource(gsId, 1, (const GLchar**) &srcGeom, NULL);
-	glCompileShader(gsId);
-	OK = OK && cgl::checkShaderCompilationStatus(gsId);
-	
 	GLuint fsId = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(fsId, 1, (const GLchar**) &srcFrag, NULL);
 	glCompileShader(fsId);
@@ -88,7 +105,6 @@ GLuint buildProgram(const char* srcVert, const char* srcGeom, const char* srcFra
 
 	GLuint program = glCreateProgram();
 	glAttachShader(program, vsId);
-	glAttachShader(program, gsId);
 	glAttachShader(program, fsId);
 
 	// Now ready to link 
@@ -108,41 +124,24 @@ GLuint buildProgram(const char* srcVert, const char* srcGeom, const char* srcFra
 	return program;
 }
 
-void updateVertexBufferObjects()
-{
-	// Transfer data
-	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_POSITION]);
-	glBufferData(GL_ARRAY_BUFFER, VERTICES_AMOUNT*3*sizeof(float), g_vertices.data(), GL_STATIC_DRAW);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-}
-
 void initVertexBufferObjects()
 {
-	// Set initial states for particles (allocate on heap because might be too big fro stack)
-	/*
-	g_vertices.push_back(glm::vec3(0,0,0));
-	g_vertices.push_back(glm::vec3(1,1,0));
-	g_vertices.push_back(glm::vec3(3,1,0));
-	g_vertices.push_back(glm::vec3(3,4,0));
-	g_vertices.push_back(glm::vec3(0,3,0));
-	g_vertices.push_back(glm::vec3(-1,3.5,0));
-	g_vertices.push_back(glm::vec3(-2,1.5,0));
-	g_vertices.push_back(glm::vec3(-3,0,0));
-	g_vertices.push_back(glm::vec3(-2,-1,0));
-	g_vertices.push_back(glm::vec3(-2,0,0));
-	g_vertices.push_back(glm::vec3(-1,0,0));
-	*/
-
-	float data [][2] = {{9.464286,38.928572},{11.071428,39.821429},{21.071429,48.214286},{26.250000,46.250000},{29.107143,44.642857},{28.571429,36.964286},{38.928572,40.892857},{48.928572,39.107143},{46.250000,36.785714},{49.642857,34.642857},{53.571429,38.214286},{68.035714,37.321429},{78.928572,41.071429},{82.142857,42.321429},{90.000000,44.821429},{93.571429,47.857143},{94.107143,48.750000},{90.892857,48.750000},{94.642857,51.607143},{92.857143,53.214286},{90.892857,51.964286},{87.500000,55.714286},{75.535714,61.785714},{65.892857,63.928572},{62.857143,72.678572},{50.535714,70.892857},{41.250000,67.500000},{43.571429,62.857143},{38.392857,61.428572},{33.214286,65.357143},{26.250000,61.071429},{29.642857,57.678572},{20.535714,54.285714},{9.642857,63.928572},{6.428571,62.857143},{6.785714,59.285714},{9.464286,50.892857},{6.964286,42.321429}};
-	for(int i=0;i<sizeof(data)/8;++i)
-	{
-		g_vertices.push_back(glm::vec3(data[i][0],data[i][1],0));
-	}
+	std::vector<glm::vec3> vertices;
+	std::vector<glm::ivec3> triangles;
+	cgl::loadMeshFromOffFile(MESH_FILEPATH, vertices, triangles);
 
 	// Create identifiers
-	glGenBuffers(VBO_TOTAL, g_vbo);
+	glGenBuffers(BUFFER_OBJECTS_TOTAL, g_vbo);
 
-	updateVertexBufferObjects();
+	// Transfer data
+	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_POSITION]);
+	glBufferData(GL_ARRAY_BUFFER, vertices.size()*sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_vbo[EBO_TRIANGLES]);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, triangles.size()*sizeof(glm::ivec3), triangles.data(), GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+	g_totalElements = triangles.size()*3;
 }
 
 void initVertexArrayObjects()
@@ -156,6 +155,7 @@ void initVertexArrayObjects()
 		glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_POSITION]);
 		glVertexAttribPointer(g_attribPosition, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));
 		glEnableVertexAttribArray(g_attribPosition);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_vbo[EBO_TRIANGLES]);
 	}
 	glBindVertexArray(0);
 }
@@ -182,14 +182,41 @@ void initFrameBufferObject(int width, int height)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-void drawLines() 
+void drawMesh() 
 {
 	glBindVertexArray(g_vao[VAO_VERTEX]);
 	{
-		//glDrawArrays(GL_LINE_STRIP, 0, g_vertices.size());				
-		glDrawArrays(GL_LINE_STRIP_ADJACENCY, 0, g_vertices.size());						
+		glDrawElementsInstanced(GL_TRIANGLES, g_totalElements, GL_UNSIGNED_INT, BUFFER_OFFSET(0), g_texSize.x*g_texSize.y);
 	}
 	glBindVertexArray(0);
+}
+
+void initTexFromFile() 
+{
+	CTargaImage img;
+
+	char *filename = TEX_FILEPATH;
+
+	if(!img.Load(filename))
+	{
+		printf("Unable to load %s\n", filename);
+		return;
+	}
+
+	glGenTextures(TEXTURE_OBJECTS_TOTAL, g_textures);
+	glBindTexture(GL_TEXTURE_2D, g_textures[TEX_FROM_FILE]);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+
+	g_texSize.x = img.GetWidth();
+	g_texSize.y = img.GetHeight();
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img.GetWidth(), img.GetHeight(), 0, GL_RGB, GL_UNSIGNED_BYTE, img.GetImage());		
+
+	img.Release();						
 }
 
 void initShaders() {
@@ -198,32 +225,32 @@ void initShaders() {
 		"#version 330\n"
 		"in vec3 aPosition;\n"
 		"uniform mat4 uModelViewMatrix;\n"
+		"uniform mat4 uProjectionMatrix;\n"
+		"uniform sampler2D uTexture;\n"
+		"out vec4 fColor;\n"
 		"\n"
 		"void main()\n"
 		"{\n"
-		"	gl_Position = uModelViewMatrix * vec4(aPosition,1);\n"
+		"	ivec2 texSize = textureSize(uTexture, 0);\n"
+		"	ivec2 coord = ivec2(gl_InstanceID%texSize.x, gl_InstanceID/texSize.x);\n"
+		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition+vec3(coord.x*2,coord.y*2,0),1);\n"
+		"	fColor = vec4(texelFetch(uTexture, coord, 0).xyz, 1);\n"
 		"}\n";
 
 	const char* srcFrag = 
 		"#version 330\n"
-		"#define M_PI 3.1415926535897932384626433832795\n"
+		"in vec4 fColor;\n"
 		"out vec4 oColor;\n"
-		"in vec4 gColor;\n"
-		"in float gDist;\n"
 		"\n"
 		"void main()\n"
 		"{\n"
-//		"	oColor = vec4(1,1,1,1)*cos(gDist*M_PI/2);\n"
-		"	oColor = vec4(1,1,1,1);\n"
-		"	if(gDist>0.5) oColor=vec4(1,0,0,1);\n"
-		"	//oColor = gColor;\n"
+//		"	oColor = vec4(1,1,1,1);\n"
+		"	oColor = fColor;\n"
 		"}\n";
-
-	std::string srcGeomStr = cgl::Shader::readFile(GEOMETRY_SHADER_FILENAME);
 
 	try
 	{
-		g_program = buildProgram(srcVert, srcGeomStr.c_str(), srcFrag);	
+		g_program = buildProgram(srcVert, srcFrag);	
 	}
 	catch(std::exception ex)
 	{
@@ -233,6 +260,7 @@ void initShaders() {
 	g_attribPosition = glGetAttribLocation(g_program, "aPosition");
 	g_uniformModelViewMatrix = glGetUniformLocation(g_program, "uModelViewMatrix");
 	g_uniformProjectionMatrix = glGetUniformLocation(g_program, "uProjectionMatrix");
+	g_uniformTexture = glGetUniformLocation(g_program, "uTexture");
 }
 
 
@@ -248,19 +276,21 @@ void init()
 	initShaders();
 
 	// Set background color to gray
-	glClearColor(0, 0, 0, 0);
+	glClearColor(0.25, 0.25, 0.25, 1);
 
 	// Init states		
 	glPointSize(2);
-
-	// Place camera	
-	//g_modelView = glm::translate(g_modelView, glm::vec3(0,0,-1.5));
 
 	// Init feedback vertex data
 	initVertexBufferObjects();
 
 	// Init vertex data
 	initVertexArrayObjects();
+
+	initTexFromFile();
+
+	// Place camera	
+	g_modelView = glm::translate(g_modelView, glm::vec3(0,0,-1.5));
 }
  
 /**
@@ -269,7 +299,16 @@ void init()
 */
 void setupCamera() 
 {	
-	g_modelView = glm::mat4(1);
+	g_modelView[3] *= 1+g_cameraTranslation;
+
+	glm::vec3 vecY(g_modelView[0][1], g_modelView[1][1], g_modelView[2][1]);
+	g_modelView = glm::rotate(g_modelView, (float)-g_cameraRotationXY.x, vecY);
+
+	glm::vec3 vecX(g_modelView[0][0], g_modelView[1][0], g_modelView[2][0]);
+	g_modelView = glm::rotate(g_modelView, (float)-g_cameraRotationXY.y, vecX);
+
+	g_cameraRotationXY = glm::ivec2(0,0);
+	g_cameraTranslation = 0;
 }
 
 void display(void) 
@@ -294,21 +333,20 @@ void display(void)
 	setupCamera();		
 	// Save camera transformation
 	
-	// Update model-view matrix
-	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));	
+	// Update texture
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, g_textures[TEX_FROM_FILE]);
+	glUniform1i(g_uniformTexture, 0);
+
 	
-	//glBindFramebuffer(GL_FRAMEBUFFER, g_fbo);
-	// draw lines
-	drawLines();
-	//glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	/*
-	for(auto& vertex :g_vertices)
-	{
-		vertex.x += glm::gaussRand(0.0f,0.2f);
-		vertex.y += glm::gaussRand(0.0f,0.2f);
-	}
-	updateVertexBufferObjects();
-	*/
+	glm::mat4 modelView = glm::translate(g_modelView, 2.0f*glm::vec3(-g_texSize.x/2.0f, -g_texSize.y/2.0f, 0));
+
+	// Update model-view matrix
+	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(modelView));	
+	
+	// draw Meshes
+	drawMesh();
+
 	// Swap double buffer
 	glutSwapBuffers();
 }
@@ -320,9 +358,10 @@ void reshape(int width, int height) {
 
 	// Setup projection transformation
 	//g_projection = glm::ortho(-5.0f,5.0f,-5.0f, 5.0f, -1.0f, 1.0f);	
-	g_projection = glm::ortho(0.0f,100.0f,0.0f, 100.0f, -1.0f, 1.0f);	
+	//g_projection = glm::ortho(0.0f,100.0f,0.0f, 100.0f, -1.0f, 1.0f);	
 
-	initFrameBufferObject(width, height);
+	g_projection = glm::perspective(90.0f, (float)width/height, 0.01f, 10.0f);
+	//initFrameBufferObject(width, height);
 
 	// Create projection transformation	
 	glUseProgram(g_program); // Remember to use program when setting variables
@@ -336,6 +375,16 @@ void motionFunc(int x, int y)
 	glm::ivec2 prev = g_prevMouse;
 	int dx = prev.x - x;
 	int dy = prev.y - y;
+
+	if(g_zoomMode)
+	{
+		g_cameraTranslation += dy/100.0f;
+	}
+	else
+	{
+		// Rotate model
+		rotate(dx, dy);
+	}
 
 	// Remember mouse location 
 	g_prevMouse = glm::ivec2(x,y);	
@@ -393,7 +442,7 @@ int main(int argc, char **argv) {
 	glutInitWindowPosition(0, 0);
 	glutInitWindowSize(512, 512);
 
-	int windowId = glutCreateWindow("ex24 - Decorated Geometry Lines");
+	int windowId = glutCreateWindow("ex25 - Instanced Rendering Grid");
 
 	glutReshapeFunc(reshape);
 	glutDisplayFunc(display);	

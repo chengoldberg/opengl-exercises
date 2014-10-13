@@ -380,6 +380,46 @@ namespace cgl
 		f.write(buffer,width*height*3);
 		f.close();	
 	}
+
+
+	bool loadMeshFromOffFile(std::string fileName, std::vector<glm::vec3>& vertices, std::vector<glm::ivec3>& triangles) 
+	{
+		int verticesNum, trianglesNum;
+
+		int i;
+		FILE *fp;
+		errno_t err;
+		if((err = fopen_s(&fp, fileName.c_str(), "rb"))!=0)
+		{
+			std::cout << "File not found " << fileName << std::endl;
+			return false;
+		}
+		std::cout << "Loaded successfully " << fileName << std::endl;
+
+		fscanf_s(fp, "OFF %d %d 0", &verticesNum, &trianglesNum);
+
+		vertices.resize(verticesNum);
+		triangles.resize(trianglesNum);
+
+		for (i=0; i < verticesNum; ++i)
+		{
+			fscanf_s(fp, "%f %f %f", 
+				&(vertices[i].x), 
+				&(vertices[i].y),
+				&(vertices[i].z));
+		}
+		for (i=0; i < trianglesNum; ++i)
+		{
+			fscanf_s(fp, " 3 %d %d %d", 
+				&(triangles[i][0]), 
+				&(triangles[i][1]), 
+				&(triangles[i][2]));	
+		}
+		fclose(fp);
+
+		return true;
+	}
+
 }
 
 //

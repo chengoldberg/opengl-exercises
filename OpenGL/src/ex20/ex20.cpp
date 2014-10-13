@@ -39,6 +39,22 @@
 // Not sure why the window we get is different from the size we request...
 #define GLUT_WINDOW_PAD 8
 #define MOTION_FILENAME "../res/motion/01_01.bvh"
+#define MODEL_BINARY_FILENAME "C:\\Users\\ChenLucy\\Cache\\opengl-exercises\\OpenGL\\res\\motion\\skin.bin"
+#define MODEL_FILENAME "C:\\Users\\ChenLucy\\Cache\\opengl-exercises\\OpenGL\\res\\motion\\skin.cgtf"
+
+char* readBinaryFile(std::string filename)
+{
+	std::ifstream file(filename, std::ios::binary);
+	if(!file.is_open())
+		throw std::exception("Failed to load file");
+	file.seekg(0, std::ios::end);
+	GLuint size = (GLuint) file.tellg();
+	file.seekg(0, std::ios::beg); 
+	char* bindata = new char[size];
+	file.read(bindata, size);
+
+	return bindata;
+}
 
 class Joint;
 
@@ -295,32 +311,26 @@ void initShaders()
 	g_program.build(shaders);	
 
 	g_attributes.position = glGetAttribLocation(g_program.getId(), "aPosition");
+	g_attributes.influenceJoints = glGetAttribLocation(g_program.getId(), "aInfluenceJoints");
+
 	g_uniforms.modelViewMatrix = glGetUniformLocation(g_program.getId(), "uModelViewMatrix");
 	g_uniforms.projectionMatrix = glGetUniformLocation(g_program.getId(), "uProjectionMatrix");
+	g_uniforms.jointColors = glGetUniformLocation(g_program.getId(), "uJointColors");
 }
 
-void init() 
+void initModel()
 {
-	// Init GL Debug
-	cgl::initDebugAll();
-	initShaders();
+	std::ifstream ifs(MODEL_FILENAME);
+	char* bindata = readBinaryFile(MODEL_BINARY_FILENAME);
 
-	//std::string json = cgl::Shader::readFile("C:\\Users\\ChenLucy\\Cache\\opengl-exercises\\OpenGL\\res\\motion\\skin.cgtf");
-
-	std::ifstream file("C:\\Users\\ChenLucy\\Cache\\opengl-exercises\\OpenGL\\res\\motion\\skin.bin", std::ios::binary);
-	if(!file.is_open())
-		throw std::exception("Failed to load file");
-	file.seekg(0, std::ios::end);
-	GLuint size = (GLuint) file.tellg();
-	file.seekg(0, std::ios::beg); 
-	char* bindata = new char[size];
-	file.read(bindata, size);
-
-	std::ifstream ifs("C:\\Users\\ChenLucy\\Cache\\opengl-exercises\\OpenGL\\res\\motion\\skin.cgtf");
+	// Parse JSON
 	Json::Value val;
 	Json::Reader rdr;
 	rdr.parse(ifs, val);		
 	
+	// Init model mesh
+
+	// Parse face indices
 	std::vector<GLuint> indices;
 	unsigned short* ptr = (unsigned short*)(bindata + val["triangles"]["pos"].asInt());
 	const int cnt = val["triangles"]["bytecount"].asInt()/2;
@@ -329,22 +339,43 @@ void init()
 		indices.push_back(*(ptr+i));
 	}
 	sm.init(indices);
+
+	// Parse vertex attributes
 	sm.addAttrib("position", 3, bindata + val["vertex_positions"]["pos"].asUInt(), val["vertex_positions"]["bytecount"].asUInt());
-	sm.addAttrib("weight", 4, bindata + val["vertex_weights"]["pos"].asUInt(), val["vertex_weights"]["bytecount"].asUInt());
+	sm.addAttrib("aInfluenceJoints", 4, bindata + val["vertex_joints"]["pos"].asUInt(), val["vertex_joints"]["bytecount"].asUInt(), GL_UNSIGNED_INT);
+	
 	//sm.setDrawMode(GL_POINTS);
 
+	// Only one program - so set locations once
 	std::vector<GLuint> attribLocs;
 	attribLocs.push_back(g_attributes.position);
+	attribLocs.push_back(g_attributes.influenceJoints);
 	sm.setAttribLocs(attribLocs);
 
 	sm.initBuffers();
 
-	/*
-	json_value* jv = json_parse(json.c_str(), json.length());
-	*/
+	//
+	// Init model skeleton data
+	//
 
-	// Init assets
+	// Upload joint colors to GPU
+	const int jointsNum = val["joints_colors"]["bytecount"].asUInt()/4/3; //4 bytes, 3 components
+	glProgramUniform3fv(g_program.getId(), g_uniforms.jointColors, 
+		jointsNum,
+		reinterpret_cast<float*>(bindata + val["joints_colors"]["pos"].asUInt()));
 	
+	delete [] bindata;
+}
+
+void init() 
+{
+	// Init GL Debug
+	cgl::initDebugAll();
+	initShaders();
+	
+	initModel();
+
+	// Init assets	
 	std::ifstream fin(MOTION_FILENAME, std::ifstream::in);
 	assert(fin.is_open());
 	std::string tempStr;

@@ -351,7 +351,7 @@ int main(int argc, char **argv)
 		glutInit(&argc, argv);
 		glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
 		glutInitWindowPosition(0, 0);
-		glutInitWindowSize(512, 512);
+		glutInitWindowSize(528, 528);
 
 		glutCreateWindow("ex14 - Drawing RGB Cube with geometry shaders and Core features");
 
