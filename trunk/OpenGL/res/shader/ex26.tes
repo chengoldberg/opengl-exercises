@@ -1,0 +1,19 @@
+﻿#version 400 core
+layout(triangles, equal_spacing, ccw) in;
+in vec4 tColor[];
+out vec4 fColor;
+uniform mat4 uModelViewMatrix;
+uniform mat4 uProjectionMatrix;
+void main()
+{
+    vec4 position =
+        gl_in[0].gl_Position * gl_TessCoord.x +
+        gl_in[1].gl_Position * gl_TessCoord.y +
+        gl_in[2].gl_Position * gl_TessCoord.z;
+	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(normalize(position.xyz),1);
+	fColor = 
+        tColor[0] * gl_TessCoord.x +
+        tColor[1] * gl_TessCoord.y +
+        tColor[2] * gl_TessCoord.z;
+
+}
