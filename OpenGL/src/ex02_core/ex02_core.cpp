@@ -56,7 +56,8 @@ void rotate(double x, double y)
 
 // ============================== Helper Functions =========================
 
-int checkProgramInfoLog(GLuint prog) {
+int checkProgramInfoLog(GLuint prog) 
+{
 	int len = 0, read = 0;
 	std::string log;
 	glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &len);
@@ -72,7 +73,8 @@ int checkProgramInfoLog(GLuint prog) {
 	return ret;
 }
 
-bool myCompileShader(GLuint shader) {
+bool myCompileShader(GLuint shader) 
+{
 	GLint compiled;
 
 	glCompileShader(shader);
@@ -94,8 +96,8 @@ bool myCompileShader(GLuint shader) {
 	return compiled == 1;
 }
 
-GLuint createProgramFast(const char* srcVert, const char* srcFrag) {
-
+GLuint createProgramFast(const char* srcVert, const char* srcFrag) 
+{
 	printf("\nCreating program");
 
 	bool OK = true;
@@ -135,7 +137,7 @@ GLuint createProgramFast(const char* srcVert, const char* srcFrag) {
 const unsigned int cubeVerticesNum = 8;
 const unsigned int cubeFacesNum = 2*6;
 
-void loadRGBCube()
+void initVertexBufferObjects()
 {
 	float vertices[cubeVerticesNum][3] = {
 		{-1,-1,-1}, //0
@@ -165,6 +167,9 @@ void loadRGBCube()
 		{7,5,4},{4,6,7},
 		{7,3,1},{1,5,7}};
 
+#ifdef PARTIAL
+	//TODO: Transfer cube data to GPU
+#else
 	// Transfer data to GPU
 	glGenBuffers(1, &g_vbObject);
 	glBindBuffer(GL_ARRAY_BUFFER, g_vbObject);
@@ -177,7 +182,14 @@ void loadRGBCube()
 	glGenBuffers(1, &g_ebObject);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_ebObject);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, cubeFacesNum*3*sizeof(unsigned int), faces, GL_STATIC_DRAW);
-	
+#endif
+}
+
+void initVertexArrayObjects()
+{
+#ifdef PARTIAL
+	//TODO: Keep all vertex attribute states in VAO
+#else
 	// Keep all vertex attribute states in VAO
 	glGenVertexArrays(1, &g_vao);
 	glBindVertexArray(g_vao);
@@ -192,6 +204,7 @@ void loadRGBCube()
 	glEnableVertexAttribArray(g_attribColor);		
 
 	glBindVertexArray(0);
+#endif
 }
 
 /**
@@ -200,44 +213,74 @@ void loadRGBCube()
 void drawRGBCube() 
 {
 	// Define the RGB cube on the GPU
-	if(g_vao == 0)
-		loadRGBCube();
-
+#ifdef PARTIAL
+	//TODO: Bind VAO and call draw function
+#else
 	// Bind and Draw
 	glBindVertexArray(g_vao);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_ebObject);
 	glDrawElements(GL_TRIANGLES, cubeFacesNum*3, GL_UNSIGNED_INT, BUFFER_OFFSET(0));				
 	glBindVertexArray(0);
+#endif
 }
 
 void initShaders() {
 	
+#ifdef PARTIAL
+	//TODO: Add color vertex attribute
+	//TODO: Add ModelView and Projection uniform matrices
 	const char* srcVert = 
-		"varying vec4  vColor;"
-		"attribute vec3 aPosition;"
-		"attribute vec3 aColor;"
-		"uniform mat4 uModelViewMatrix;"
-		"uniform mat4 uProjectionMatrix;"
-		""
-		"void main()"
-		"{"
-		"	vColor = vec4(aColor,1);"
-		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition,1);"
-		"}";
+		"#version 330\n"
+		"in vec3 aPosition;\n"
+		"\n"
+		"void main()\n"
+		"{\n"
+		"	gl_Position = vec4(aPosition,1);\n"
+		"}\n";
 
 	const char* srcFrag = 
-		"varying vec4  vColor;"
+		"#version 330\n"
+		"out vec4 oColor;\n"
 		""
-		"void main()"
-		"{"
-		"	gl_FragColor = vColor;"
-		"}";
+		"void main()\n"
+		"{\n"
+		"	oColor = vec4(1);\n"
+		"}\n";
+#else
+	const char* srcVert = 
+		"#version 330\n"
+		"out vec4 vColor;\n"
+		"in vec3 aPosition;\n"
+		"in vec3 aColor;\n"
+		"uniform mat4 uModelViewMatrix;\n"
+		"uniform mat4 uProjectionMatrix;\n"
+		"\n"
+		"void main()\n"
+		"{\n"
+		"	vColor = vec4(aColor,1);\n"
+		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition,1);\n"
+		"}\n";
+
+	const char* srcFrag = 
+		"#version 330\n"
+		"in vec4 vColor;\n"
+		"out vec4 oColor;\n"
+		""
+		"void main()\n"
+		"{\n"
+		"	oColor = vColor;\n"
+		"}\n";
+#endif
 
 	g_program = createProgramFast(srcVert, srcFrag);	
 	g_attribPosition = glGetAttribLocation(g_program, "aPosition");
+#ifdef PARTIAL
+	//TODO: Retrive attribute id for color, and uniforms ids for modelview and projection matrices
+#else
 	g_attribColor = glGetAttribLocation(g_program, "aColor");
 	g_uniformModelViewMatrix = glGetUniformLocation(g_program, "uModelViewMatrix");
 	g_uniformProjectionMatrix = glGetUniformLocation(g_program, "uProjectionMatrix");
+#endif
 }
 
 
@@ -245,6 +288,12 @@ void init()
 {
 	// Init shaders
 	initShaders();
+
+	// Init VBOs
+	initVertexBufferObjects();
+
+	// Init VAOs
+	initVertexArrayObjects();
 
 	// Set background color to gray
 	glClearColor(0.5f, 0.5f, 0.5f, 0);
@@ -268,9 +317,15 @@ void setupCamera()
 	g_rotY = 0;	
 }
 
+void updateModelViewInProgram()
+{
+	// Note: make sure to use program when setting variables
+	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, (const GLfloat*) &g_modelView);	
+}
+
 void display(void) 
 {
-	//glEnable(GL_DEPTH_TEST);
+	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 
 	// Clear FrameBuffer
@@ -293,21 +348,21 @@ void display(void)
 	// Draw Line RGB cube
 	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);		
 	g_modelView = glm::translate(g_modelView, glm::vec3(-3,0,0));
-	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));
+	updateModelViewInProgram();
 	drawRGBCube();
 
 	// Draw Fill RGB cube
 	glPointSize(1);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);		
 	g_modelView = glm::translate(g_modelView, glm::vec3(3,0,0));
-	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));
+	updateModelViewInProgram();
 	drawRGBCube();
 	glPointSize(5);
 
 	// Draw Point RGB cube
 	glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
 	g_modelView = glm::translate(g_modelView, glm::vec3(3,0,0));
-	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));
+	updateModelViewInProgram();
 	drawRGBCube();
 
 	// Load camera transformation
@@ -322,15 +377,19 @@ void reshape(int width, int height) {
 	// Setup viewport
 	glViewport(0,0,width,height);
 
+	// Create projection transformation	
 	float w,h;
 	w = 10;
 	h = 10*((float)height/width);	
 	g_projection = glm::ortho(-w/2.0f, w/2.0f, -h/2.0f, h/2.0f, -1.0f, 1000.0f);
 
-	// Create projection transformation	
+#ifdef PARTIAL
+	//TODO: Update projection in shaders
+#else
 	glUseProgram(g_program); // Remember to use program when setting variables
 	glUniformMatrix4fv(g_uniformProjectionMatrix, 1, false, glm::value_ptr(g_projection));
 	glUseProgram(0);
+#endif
 }
 
 void motionFunc(int x, int y) {
@@ -361,8 +420,8 @@ int main(int argc, char **argv) {
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-	glutInitWindowPosition(500, 500);
-	glutInitWindowSize(500, 500);
+	glutInitWindowPosition((glutGet(GLUT_SCREEN_WIDTH)-512)/2, (glutGet(GLUT_SCREEN_HEIGHT)-512)/2);
+	glutInitWindowSize(512, 512);
 
 	glutCreateWindow("ex2 - Drawing RGB Cube - Core profile");
 

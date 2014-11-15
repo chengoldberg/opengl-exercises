@@ -85,12 +85,14 @@ GLuint buildProgram(const char* srcVert, const char* srcGeom, const char* srcFra
 	glShaderSource(vsId, 1, (const GLchar**) &srcVert, NULL);
 	glCompileShader(vsId);
 	OK = OK && cgl::checkShaderCompilationStatus(vsId);
-
+#ifdef PARTIAL
+	//TODO: Create Geometry shader from source
+#else
 	GLuint gsId = glCreateShader(GL_GEOMETRY_SHADER);
 	glShaderSource(gsId, 1, (const GLchar**) &srcGeom, NULL);
 	glCompileShader(gsId);
 	OK = OK && cgl::checkShaderCompilationStatus(gsId);
-	
+#endif
 	GLuint fsId = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(fsId, 1, (const GLchar**) &srcFrag, NULL);
 	glCompileShader(fsId);
@@ -104,13 +106,17 @@ GLuint buildProgram(const char* srcVert, const char* srcGeom, const char* srcFra
 
 	GLuint program = glCreateProgram();
 	glAttachShader(program, vsId);
+#ifdef PARTIAL
+	//TODO: Attach geomtry shader
+#else
 	glAttachShader(program, gsId);
+#endif
 	glAttachShader(program, fsId);
 
 	// Now ready to link 
 	glLinkProgram(program);
 
-	//glValidateProgram(program);
+	glValidateProgram(program);
 
 	if(cgl::checkProgramInfoLog(program) == 0) 
 	{
@@ -183,16 +189,33 @@ void initShaders() {
 		"out vec4  vColor;\n"
 		"in vec3 aPosition;\n"
 		"in vec3 aColor;\n"
+#ifdef PARTIAL		
+		"uniform mat4 uProjectionMatrix;\n"
+#endif
 		"uniform mat4 uModelViewMatrix;\n"
 		"uniform float uSpeed;\n"
 		"\n"
 		"void main()\n"
 		"{\n"
 		"	vColor = vec4(aColor,1);\n"
+#ifdef PARTIAL		
+		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition,1);\n"
+#else
 		"	gl_Position = uModelViewMatrix * vec4(aPosition,1);\n"
+#endif
 		"}\n";
 
 	const char* srcFrag = 
+#ifdef PARTIAL
+		"#version 330\n"
+		"in vec4  vColor;\n"
+		"out vec4 oColor;\n"
+		"\n"
+		"void main()\n"
+		"{\n"
+		"	oColor = vColor;\n"
+		"}\n";
+#else
 		"#version 330\n"
 		"in vec4  gColor;\n"
 		"out vec4 oColor;\n"
@@ -201,7 +224,7 @@ void initShaders() {
 		"{\n"
 		"	oColor = gColor;\n"
 		"}\n";
-
+#endif
 	std::string srcGeomStr = cgl::Shader::readFile(GEOMETRY_SHADER_FILENAME);
 
 	g_program = buildProgram(srcVert, srcGeomStr.c_str(), srcFrag);	
@@ -247,7 +270,8 @@ void init()
 */
 void setupCamera() 
 {	
-	g_modelView[3] *= 1+g_cameraTrasnlation;
+	// Want to translate along local Z (0,0,1,0), which is the 3rd row of the matrix
+	g_modelView = glm::translate(g_modelView, g_cameraTrasnlation*glm::vec3(glm::transpose(g_modelView)[2]));
 
 	glm::vec3 vecY(g_modelView[0][1], g_modelView[1][1], g_modelView[2][1]);
 	g_modelView = glm::rotate(g_modelView, (float)-g_cameraRotationXY.x, vecY);
