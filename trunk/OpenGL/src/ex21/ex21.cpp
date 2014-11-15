@@ -145,9 +145,13 @@ GLuint createProgramFast(const char* srcVert, const char* srcFrag) {
 	glAttachShader(program, vsId);
 	glAttachShader(program, fsId);
 
+#ifndef PARTIAL
 	// Declare transform feedback variables
 	const GLchar* names[] = {"oPosition", "oDirection"};
 	glTransformFeedbackVaryings(program, 2, names, GL_SEPARATE_ATTRIBS); // Write to a single buffer
+#else
+	//TODO: Declare transform feedback variables
+#endif
 
 	// Now ready to link (since oPosition target is bound)
 	glLinkProgram(program);
@@ -243,9 +247,9 @@ void drawAndProcessParticles()
 	static int s_drawCounter = -1;
 	s_drawCounter += 1;
 
-	GLuint feedbackPositionVbo, feedbackDirectionVbo;
 	GLuint drawVao;
-
+#ifndef PARTIAL
+	GLuint feedbackPositionVbo, feedbackDirectionVbo;
 	if(s_drawCounter % 2 == 0)
 	{
 		drawVao = VAO_VERTEX_0;
@@ -258,15 +262,22 @@ void drawAndProcessParticles()
 		feedbackPositionVbo = VBO_POSITION_0;
 		feedbackDirectionVbo = VBO_DIRECTION_0;
 	}
+
 	glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, g_vbo[feedbackPositionVbo]);
 	glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 1, g_vbo[feedbackDirectionVbo]);
-	glBeginTransformFeedback(GL_POINTS);
+	glBeginTransformFeedback(GL_POINTS);	
+#else //PARTIAL
+	drawVao = VAO_VERTEX_0;
+	//TODO: Bind outputs to VBO and create feedback scope
+	//TODO: Alternate input and output data
+#endif //PARTIAL
 
 	glBindVertexArray(g_vao[drawVao]);
 	glDrawArrays(GL_POINTS, 0, 1<<g_drawVerticesAmountExponent);				
 	glBindVertexArray(0);
-
+#ifndef PARTIAL
 	glEndTransformFeedback();
+#endif //PARTIAL
 }
 
 void initShaders() {
