@@ -239,6 +239,8 @@ void init()
 	g_levelsInner = 1;
 	g_zoomMode = false;
 
+	glEnable(GL_MULTISAMPLE);
+
 	// Init shaders
 	initShaders();
 
@@ -410,7 +412,7 @@ int main(int argc, char **argv) {
 	glutInitContextFlags(GLUT_DEBUG);
 
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_MULTISAMPLE);
 	glutInitWindowPosition(0, 0);
 	glutInitWindowSize(512, 512);
 
