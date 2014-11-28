@@ -1,4 +1,3 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build" ToolsVersion="4.0">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -13,9 +12,11 @@
   <ItemGroup>
     <ClCompile Include="..\..\..\src_partial\ex23\ex23.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\res\shader\ex23.geom" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectName>ex23_partial</ProjectName>
-    <ProjectGuid>{A071C646-C82D-4992-A8E3-EE87C6EE0DCB}</ProjectGuid>
+    <ProjectName>ex23_partial</ProjectName><ProjectGuid>{A071C646-C82D-4992-A8E3-EE87C6EE0DCB}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>ex21_partial</RootNamespace>
   </PropertyGroup>
