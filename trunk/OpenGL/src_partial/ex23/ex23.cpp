@@ -30,14 +30,10 @@
 #include <vector>
 #include "cgl/gl/common.hpp"
 
-#include "CTargaImage.h"
-#include "CTargaImage.cpp"
-
 #define BUFFER_OFFSET(bytes)  ((GLubyte*) NULL + (bytes))
-#define GEOMETRY_SHADER_FILENAME "../res/shader/ex24.geom"
-
-#define MESH_FILEPATH "../res/mesh/sphere.off"
-#define TEX_FILEPATH "../res/tex_2d/tomb.tga"
+#define MAX_VERTICES_AMOUNT_EXPONENT 15
+#define VERTICES_AMOUNT (1<<MAX_VERTICES_AMOUNT_EXPONENT)
+#define GEOMETRY_SHADER_FILENAME "../res/shader/ex23.geom"
 
 enum EVao
 {
@@ -45,36 +41,32 @@ enum EVao
 	VAO_TOTAL
 };
 
-enum EBufferObject
+enum EVbo
 {
 	VBO_POSITION,
-	EBO_TRIANGLES,
-	BUFFER_OBJECTS_TOTAL
-};
-
-enum ETextureObjects
-{
-	TEX_FROM_FILE,
-	TEXTURE_OBJECTS_TOTAL
+	VBO_COLOR,
+	VBO_TOTAL
 };
 
 bool g_wireframeEnabled;
 bool g_blendEnabled;
 bool g_zoomMode;
+float g_cameraTrasnlation;
 glm::ivec2 g_prevMouse;
-GLuint g_program, g_attribPosition, g_uniformModelViewMatrix, g_uniformProjectionMatrix, g_uniformTexture;
-GLuint g_vbo[BUFFER_OBJECTS_TOTAL];
-GLuint g_vao[VAO_TOTAL];
-GLuint g_fbo;
-GLuint g_timerQuery;
-int g_totalElements;
-glm::mat4 g_modelView(1), g_projection;
-std::vector<glm::vec3> g_vertices;
 glm::ivec2 g_cameraRotationXY;
-float g_cameraTranslation;
-GLuint g_textures[TEXTURE_OBJECTS_TOTAL];
-glm::ivec2 g_texSize;
+float g_particleSpeed;
+bool g_particleMotionEnabled;
+int g_drawVerticesAmountExponent;
+GLuint g_program, g_attribPosition, g_attribColor, g_uniformModelViewMatrix, g_uniformProjectionMatrix, g_uniformSpeed;
+GLuint g_vbo[VBO_TOTAL];
+GLuint g_vao[VAO_TOTAL];
+glm::mat4 g_modelView(1), g_projection;
 
+/*
+ * Rotate view along x and y axes 
+ * @param x Angles to rotate around x
+ * @param y Angles to rotate around y
+ */
 void rotate(double x, double y) 
 {
 	g_cameraRotationXY.x += x;
@@ -83,8 +75,8 @@ void rotate(double x, double y)
 
 // ============================== Helper Functions =========================
 
-GLuint buildProgram(const char* srcVert, const char* srcFrag) 
-{
+GLuint buildProgram(const char* srcVert, const char* srcGeom, const char* srcFrag) {
+
 	printf("\nCreating program");
 
 	bool OK = true;
@@ -93,7 +85,7 @@ GLuint buildProgram(const char* srcVert, const char* srcFrag)
 	glShaderSource(vsId, 1, (const GLchar**) &srcVert, NULL);
 	glCompileShader(vsId);
 	OK = OK && cgl::checkShaderCompilationStatus(vsId);
-
+	//TODO: Create Geometry shader from source
 	GLuint fsId = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(fsId, 1, (const GLchar**) &srcFrag, NULL);
 	glCompileShader(fsId);
@@ -101,25 +93,28 @@ GLuint buildProgram(const char* srcVert, const char* srcFrag)
 
 	if(!OK) 
 	{
-		throw std::exception("Failed to compile, quitting!\n");
+		printf("Failed to compile, quitting!\n");
+		return 0;
 	}
 
 	GLuint program = glCreateProgram();
 	glAttachShader(program, vsId);
+	//TODO: Attach geomtry shader
 	glAttachShader(program, fsId);
 
 	// Now ready to link 
 	glLinkProgram(program);
 
-	//glValidateProgram(program);
+	glValidateProgram(program);
 
 	if(cgl::checkProgramInfoLog(program) == 0) 
 	{
-		throw std::exception("Failed to create program from shaders");
+		printf("Failed to create program from shaders");
+		return 0;
 	} 
 	else 
 	{
-		std::cout << "Program created!" << std::endl;
+		printf("Program created!\n");
 	}
 
 	return program;
@@ -127,202 +122,118 @@ GLuint buildProgram(const char* srcVert, const char* srcFrag)
 
 void initVertexBufferObjects()
 {
-	std::vector<glm::vec3> vertices;
-	std::vector<glm::ivec3> triangles;
-	cgl::loadMeshFromOffFile(MESH_FILEPATH, vertices, triangles);
+	// Set initial states for particles (allocate on heap because might be too big fro stack)
+	std::vector<glm::vec3> vertices(VERTICES_AMOUNT);
+	std::vector<glm::vec3> colors(VERTICES_AMOUNT);
+
+	for(int i=0; i<VERTICES_AMOUNT; ++i)
+	{
+		vertices[i] = glm::linearRand(glm::vec3(-1,-1,-1),glm::vec3(1,1,1));			
+		colors[i] = glm::rgbColor(glm::vec3(360*static_cast<float>(rand())/RAND_MAX,1,1));
+	}
 
 	// Create identifiers
-	glGenBuffers(BUFFER_OBJECTS_TOTAL, g_vbo);
+	glGenBuffers(VBO_TOTAL, g_vbo);
 
 	// Transfer data
 	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_POSITION]);
-	glBufferData(GL_ARRAY_BUFFER, vertices.size()*sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_vbo[EBO_TRIANGLES]);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, triangles.size()*sizeof(glm::ivec3), triangles.data(), GL_STATIC_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-	g_totalElements = triangles.size()*3;
+	glBufferData(GL_ARRAY_BUFFER, VERTICES_AMOUNT*3*sizeof(float), vertices.data(), GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_COLOR]);
+	glBufferData(GL_ARRAY_BUFFER, VERTICES_AMOUNT*3*sizeof(float), colors.data(), GL_STATIC_DRAW);	
 }
 
 void initVertexArrayObjects()
 {
 	// Keep all vertex attribute states in VAO
-	glGenVertexArrays(VAO_TOTAL, g_vao);
+	glGenVertexArrays(2, g_vao);
 
 	// Define the two drawing states
 	glBindVertexArray(g_vao[VAO_VERTEX]);
 	{
 		glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_POSITION]);
 		glVertexAttribPointer(g_attribPosition, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));
+
+		glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_COLOR]);
+		glVertexAttribPointer(g_attribColor, 3, GL_FLOAT, false, 0, BUFFER_OFFSET(0));	
+
 		glEnableVertexAttribArray(g_attribPosition);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g_vbo[EBO_TRIANGLES]);
+		glEnableVertexAttribArray(g_attribColor);		
 	}
 	glBindVertexArray(0);
 }
 
-void initFrameBufferObject(int width, int height)
-{
-	GLuint rbo;
-
-	glGenFramebuffers(1, &g_fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, g_fbo);
-
-	// Now a depth buffer!	
-	glGenRenderbuffers(1, &rbo);
-	glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, width, height);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, rbo);
-
-	GLuint status = glCheckFramebufferStatus(GL_FRAMEBUFFER_EXT);
-	if (status != GL_FRAMEBUFFER_COMPLETE)
-		printf("Bad framebuffer init!\n");
-
-	// Get back to defualt framebuffer!
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-void drawMesh() 
+void drawParticles() 
 {
 	glBindVertexArray(g_vao[VAO_VERTEX]);
 	{
-#ifdef PARTIAL
-		//TODO: Make more efficient using instanced rendering
-		for(int i=0; i<g_texSize.x*g_texSize.y;++i)
-		{
-			static GLint uniformInstanceId = glGetUniformLocation(g_program, "uInstanceId");
-			glUniform1i(uniformInstanceId, i);
-			glDrawElements(GL_TRIANGLES, g_totalElements, GL_UNSIGNED_INT, BUFFER_OFFSET(0));
-		}
-#else
-		glDrawElementsInstanced(GL_TRIANGLES, g_totalElements, GL_UNSIGNED_INT, BUFFER_OFFSET(0), g_texSize.x*g_texSize.y);
-#endif
+		glDrawArrays(GL_POINTS, 0, 1<<g_drawVerticesAmountExponent);				
 	}
 	glBindVertexArray(0);
 }
 
-void initTexFromFile() 
-{
-	CTargaImage img;
-
-	char *filename = TEX_FILEPATH;
-
-	if(!img.Load(filename))
-	{
-		printf("Unable to load %s\n", filename);
-		return;
-	}
-
-	glGenTextures(TEXTURE_OBJECTS_TOTAL, g_textures);
-	glBindTexture(GL_TEXTURE_2D, g_textures[TEX_FROM_FILE]);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-	g_texSize.x = img.GetWidth();
-	g_texSize.y = img.GetHeight();
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, img.GetWidth(), img.GetHeight(), 0, GL_RGB, GL_UNSIGNED_BYTE, img.GetImage());		
-
-	img.Release();						
-}
-
 void initShaders() {
-#ifdef PARTIAL		
-	//TODO: Make more efficient using instanced rendering
-#endif
+	
 	const char* srcVert = 
-#ifdef PARTIAL		
 		"#version 330\n"
+		"out vec4  vColor;\n"
 		"in vec3 aPosition;\n"
-		"uniform mat4 uModelViewMatrix;\n"
+		"in vec3 aColor;\n"
 		"uniform mat4 uProjectionMatrix;\n"
-		"uniform sampler2D uTexture;\n"
-		"uniform int uInstanceId;\n"
-		"out vec4 fColor;\n"
+		"uniform mat4 uModelViewMatrix;\n"
+		"uniform float uSpeed;\n"
 		"\n"
 		"void main()\n"
 		"{\n"
-		"	ivec2 texSize = textureSize(uTexture, 0);\n"
-		"	ivec2 coord = ivec2(uInstanceId%texSize.x, uInstanceId/texSize.x);\n"
-		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition+vec3(coord.x*2,coord.y*2,0),1);\n"
-		"	fColor = vec4(texelFetch(uTexture, coord, 0).xyz, 1);\n"
+		"	vColor = vec4(aColor,1);\n"
+		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition,1);\n"
 		"}\n";
-#else
-		"#version 330\n"
-		"in vec3 aPosition;\n"
-		"uniform mat4 uModelViewMatrix;\n"
-		"uniform mat4 uProjectionMatrix;\n"
-		"uniform sampler2D uTexture;\n"
-		"out vec4 fColor;\n"
-		"\n"
-		"void main()\n"
-		"{\n"
-		"	ivec2 texSize = textureSize(uTexture, 0);\n"
-		"	ivec2 coord = ivec2(gl_InstanceID%texSize.x, gl_InstanceID/texSize.x);\n"
-		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition+vec3(coord.x*2,coord.y*2,0),1);\n"
-		"	fColor = vec4(texelFetch(uTexture, coord, 0).xyz, 1);\n"
-		"}\n";
-#endif
 
 	const char* srcFrag = 
 		"#version 330\n"
-		"in vec4 fColor;\n"
+		"in vec4  vColor;\n"
 		"out vec4 oColor;\n"
 		"\n"
 		"void main()\n"
 		"{\n"
-		"	oColor = fColor;\n"
+		"	oColor = vColor;\n"
 		"}\n";
+	std::string srcGeomStr = cgl::Shader::readFile(GEOMETRY_SHADER_FILENAME);
 
-	try
-	{
-		g_program = buildProgram(srcVert, srcFrag);	
-	}
-	catch(std::exception ex)
-	{
-		std::cout << ex.what();
-		throw ex;
-	}
+	g_program = buildProgram(srcVert, srcGeomStr.c_str(), srcFrag);	
 	g_attribPosition = glGetAttribLocation(g_program, "aPosition");
+	g_attribColor = glGetAttribLocation(g_program, "aColor");
 	g_uniformModelViewMatrix = glGetUniformLocation(g_program, "uModelViewMatrix");
 	g_uniformProjectionMatrix = glGetUniformLocation(g_program, "uProjectionMatrix");
-	g_uniformTexture = glGetUniformLocation(g_program, "uTexture");
+	g_uniformSpeed = glGetUniformLocation(g_program, "uSpeed");
 }
 
 
 void init() 
 {	
-	g_wireframeEnabled = true;
-	g_blendEnabled = false;
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	g_zoomMode = false;
+	g_drawVerticesAmountExponent = MAX_VERTICES_AMOUNT_EXPONENT;
+	g_particleMotionEnabled = true;
+	g_particleSpeed = 0.001f;
 
 	// Init shaders
 	initShaders();
 
 	// Set background color to gray
-	glClearColor(0.25, 0.25, 0.25, 1);
+	glClearColor(0, 0, 0, 0);
 
 	// Init states		
 	glPointSize(2);
+
+	// Place camera	
+	g_modelView = glm::translate(g_modelView, glm::vec3(0,0,-1.5));
 
 	// Init feedback vertex data
 	initVertexBufferObjects();
 
 	// Init vertex data
 	initVertexArrayObjects();
-
-	initTexFromFile();
-
-	// Place camera	
-	g_modelView = glm::translate(g_modelView, glm::vec3(0,0,-1.5));
-
-	glGenQueries(1, &g_timerQuery);
 }
  
 /**
@@ -331,7 +242,8 @@ void init()
 */
 void setupCamera() 
 {	
-	g_modelView[3] *= 1+g_cameraTranslation;
+	// Want to translate along local Z (0,0,1,0), which is the 3rd row of the matrix
+	g_modelView = glm::translate(g_modelView, g_cameraTrasnlation*glm::vec3(glm::transpose(g_modelView)[2]));
 
 	glm::vec3 vecY(g_modelView[0][1], g_modelView[1][1], g_modelView[2][1]);
 	g_modelView = glm::rotate(g_modelView, (float)-g_cameraRotationXY.x, vecY);
@@ -340,7 +252,7 @@ void setupCamera()
 	g_modelView = glm::rotate(g_modelView, (float)-g_cameraRotationXY.y, vecX);
 
 	g_cameraRotationXY = glm::ivec2(0,0);
-	g_cameraTranslation = 0;
+	g_cameraTrasnlation = 0;
 }
 
 void display(void) 
@@ -351,9 +263,11 @@ void display(void)
 	if(g_blendEnabled)
 	{
 		glEnable(GL_BLEND);
+		glDisable(GL_DEPTH_TEST);
 	}
 	else
 	{
+		glEnable(GL_DEPTH_TEST);
 		glDisable(GL_BLEND);
 	}
 	glPolygonMode(GL_FRONT_AND_BACK, g_wireframeEnabled?GL_LINE:GL_FILL);
@@ -364,32 +278,17 @@ void display(void)
 	// Create camera transformation
 	setupCamera();		
 	// Save camera transformation
+	glm::mat4 saveMat = g_modelView;
 	
-	// Update texture
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, g_textures[TEX_FROM_FILE]);
-	glUniform1i(g_uniformTexture, 0);
-
-	
-	glm::mat4 modelView = glm::translate(g_modelView, 2.0f*glm::vec3(-g_texSize.x/2.0f, -g_texSize.y/2.0f, 0));
-
 	// Update model-view matrix
-	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(modelView));	
-	
-	// Print measured drawing time of last draw (if any) to prevent stall
-	static int frameCounter = 0;
-	if(frameCounter != 0 && frameCounter++ % 33 == 0)
-	{
-		GLuint64 drawTime;
-		glGetQueryObjectui64v(g_timerQuery, GL_QUERY_RESULT, &drawTime);
-		std::cout << "Draw time: " << drawTime/1000000 << "ms" << std::endl;
-	}
+	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));	
+	// Update particles speed
+	glUniform1f(g_uniformSpeed, g_particleSpeed*static_cast<float>(g_particleMotionEnabled));	
+	drawParticles();
 
-	// draw Meshes
-	glBeginQuery(GL_TIME_ELAPSED, g_timerQuery);
-	drawMesh();
-	glEndQuery(GL_TIME_ELAPSED);
-	
+	// Load camera transformation
+	g_modelView = saveMat;
+
 	// Swap double buffer
 	glutSwapBuffers();
 }
@@ -400,11 +299,7 @@ void reshape(int width, int height) {
 	glViewport(0,0,width,height);
 
 	// Setup projection transformation
-	//g_projection = glm::ortho(-5.0f,5.0f,-5.0f, 5.0f, -1.0f, 1.0f);	
-	//g_projection = glm::ortho(0.0f,100.0f,0.0f, 100.0f, -1.0f, 1.0f);	
-
 	g_projection = glm::perspective(90.0f, (float)width/height, 0.01f, 10.0f);
-	//initFrameBufferObject(width, height);
 
 	// Create projection transformation	
 	glUseProgram(g_program); // Remember to use program when setting variables
@@ -421,7 +316,7 @@ void motionFunc(int x, int y)
 
 	if(g_zoomMode)
 	{
-		g_cameraTranslation += dy/100.0f;
+		g_cameraTrasnlation += dy/100.0f;
 	}
 	else
 	{
@@ -431,6 +326,9 @@ void motionFunc(int x, int y)
 
 	// Remember mouse location 
 	g_prevMouse = glm::ivec2(x,y);	
+
+	// Don't move particles during mouse move
+	g_particleMotionEnabled = false;
 }
 
 void mouseFunc(int button, int state, int x, int y) 
@@ -438,19 +336,40 @@ void mouseFunc(int button, int state, int x, int y)
 	if(button == GLUT_LEFT_BUTTON)
 	{
 		g_zoomMode = false;
-		g_prevMouse = glm::ivec2(x,y);
+		g_prevMouse = glm::ivec2(x,y);			
 	}
 	if(button == GLUT_RIGHT_BUTTON)
 	{
 		g_zoomMode = true;
 		g_prevMouse = glm::ivec2(x,y);	
 	}
+
+	// Resume particles motion
+	g_particleMotionEnabled = true;
 }
 
 void keyboardSpecialFunc(int key, int x, int y) 
 {
 	switch(key) {
 	case GLUT_KEY_DOWN: 
+		g_particleSpeed -= 0.001f;
+		break;
+	case GLUT_KEY_UP:
+		g_particleSpeed += 0.001f;
+		break;
+	case GLUT_KEY_LEFT:
+		g_drawVerticesAmountExponent = std::max<int>(g_drawVerticesAmountExponent-1, 0);
+		std::cout << "Vertices drawn: " << (1<<g_drawVerticesAmountExponent) << std::endl;
+		break;
+	case GLUT_KEY_RIGHT:
+		g_drawVerticesAmountExponent = std::min<int>(g_drawVerticesAmountExponent+1, MAX_VERTICES_AMOUNT_EXPONENT);
+		std::cout << "Vertices drawn: " << (1<<g_drawVerticesAmountExponent) << std::endl;
+		break;
+	case GLUT_KEY_F1:
+		g_blendEnabled ^= true;
+		break;
+	case GLUT_KEY_F2:
+		g_wireframeEnabled ^= true;
 		break;
 	}
 }
@@ -485,7 +404,7 @@ int main(int argc, char **argv) {
 	glutInitWindowPosition(0, 0);
 	glutInitWindowSize(512, 512);
 
-	int windowId = glutCreateWindow("ex25 - Instanced Rendering Grid");
+	glutCreateWindow("ex23 - Geometry Shader Circle Points");
 
 	glutReshapeFunc(reshape);
 	glutDisplayFunc(display);	
@@ -502,17 +421,7 @@ int main(int argc, char **argv) {
 	glewExperimental = GL_TRUE; 
 	glewInit();
 
-	try
-	{
-		init();
-	}
-	catch(std::exception ex)
-	{
-		// Wait key
-		glutDestroyWindow(windowId);
-		std::getchar();
-		return -1;
-	}
+	init();
 
 	std::cout << "Usage:" << std::endl;
 	std::cout << "left arrow/right arrow		Draw and process less/more particles" << std::endl;

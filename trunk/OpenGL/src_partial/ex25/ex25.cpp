@@ -187,7 +187,6 @@ void drawMesh()
 {
 	glBindVertexArray(g_vao[VAO_VERTEX]);
 	{
-#ifdef PARTIAL
 		//TODO: Make more efficient using instanced rendering
 		for(int i=0; i<g_texSize.x*g_texSize.y;++i)
 		{
@@ -195,9 +194,6 @@ void drawMesh()
 			glUniform1i(uniformInstanceId, i);
 			glDrawElements(GL_TRIANGLES, g_totalElements, GL_UNSIGNED_INT, BUFFER_OFFSET(0));
 		}
-#else
-		glDrawElementsInstanced(GL_TRIANGLES, g_totalElements, GL_UNSIGNED_INT, BUFFER_OFFSET(0), g_texSize.x*g_texSize.y);
-#endif
 	}
 	glBindVertexArray(0);
 }
@@ -231,11 +227,8 @@ void initTexFromFile()
 }
 
 void initShaders() {
-#ifdef PARTIAL		
 	//TODO: Make more efficient using instanced rendering
-#endif
 	const char* srcVert = 
-#ifdef PARTIAL		
 		"#version 330\n"
 		"in vec3 aPosition;\n"
 		"uniform mat4 uModelViewMatrix;\n"
@@ -251,22 +244,6 @@ void initShaders() {
 		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition+vec3(coord.x*2,coord.y*2,0),1);\n"
 		"	fColor = vec4(texelFetch(uTexture, coord, 0).xyz, 1);\n"
 		"}\n";
-#else
-		"#version 330\n"
-		"in vec3 aPosition;\n"
-		"uniform mat4 uModelViewMatrix;\n"
-		"uniform mat4 uProjectionMatrix;\n"
-		"uniform sampler2D uTexture;\n"
-		"out vec4 fColor;\n"
-		"\n"
-		"void main()\n"
-		"{\n"
-		"	ivec2 texSize = textureSize(uTexture, 0);\n"
-		"	ivec2 coord = ivec2(gl_InstanceID%texSize.x, gl_InstanceID/texSize.x);\n"
-		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition+vec3(coord.x*2,coord.y*2,0),1);\n"
-		"	fColor = vec4(texelFetch(uTexture, coord, 0).xyz, 1);\n"
-		"}\n";
-#endif
 
 	const char* srcFrag = 
 		"#version 330\n"
