@@ -62,11 +62,12 @@ enum EConvMode {
 	EConvModeLength
 };
 
-char* EConvFilter_str[] = {"Blur","Edge"};
+char* EConvFilter_str[] = {"Blur","Edge","Unsharpen"};
 enum EConvFilter {
 	CONV_BLUR,
 	CONV_EDGE,
-	
+	CONV_UNSHARPEN,
+
 	EConvFilterLength
 };
 
@@ -78,8 +79,9 @@ GLuint			g_toonProg, g_cloudProg, g_uniformScale, g_convProg, g_convBlurProg, g_
 				g_uniformLightPos, g_uniformSkyColor, g_uniformCloudColor,g_uniformNoise, g_uniformOffset,
 				g_particlesProg, g_uniformTime, g_particlesList,
 				g_uniformDiffuseColor, g_uniformPhongColor, g_uniformEdge, g_uniformPhong,
-				g_unifromConvOffset, g_unifromKernelSize, g_uniformKernelValue,g_uniformBaseImage, g_uniformDepthImage,
-				g_attribParam, g_paramsVBO;
+				g_uniformConvOffset, g_uniformKernelSize, g_uniformKernelValue,g_uniformBaseImage, g_uniformDepthImage,
+				g_attribParam, g_paramsVBO,
+				g_rboID;
 float			g_noiseOffset[3] = {0,0,0};
 int				g_height, g_width;
 EConvMode		g_convMode;
@@ -92,7 +94,8 @@ void CreateNoise3D();
 
 // ============================== Helper Functions =========================
 
-string readfile(char *filename) {
+string readfile(char *filename) 
+{
 	ifstream file(filename);
 	file.seekg(0, ios::end);GLuint size = (GLuint) file.tellg();file.seekg(0, ios::beg); 
 	string text(size + 1, 0);
@@ -100,8 +103,8 @@ string readfile(char *filename) {
 	return text;
 }
 
-GLuint loadTexFromFile(char* filename) {
-
+GLuint loadTexFromFile(char* filename) 
+{
 	CTargaImage img;
 	GLuint texId;
 
@@ -129,7 +132,8 @@ GLuint loadTexFromFile(char* filename) {
 	return texId;
 }
 
-int checkProgramInfoLog(GLuint prog) {
+int checkProgramInfoLog(GLuint prog) 
+{
 	int len = 0, read = 0;
 	string log;
 	glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &len);
@@ -145,7 +149,8 @@ int checkProgramInfoLog(GLuint prog) {
 	return ret;
 }
 
-bool myCompileShader(GLuint shader) {
+bool myCompileShader(GLuint shader) 
+{
 	GLint compiled;
 
 	glCompileShader(shader);
@@ -166,8 +171,8 @@ bool myCompileShader(GLuint shader) {
 	return compiled == 1;
 }
 
-GLuint createProgramFast(char* vertFn, char* fragFn) {
-
+GLuint createProgramFast(char* vertFn, char* fragFn) 
+{
 	printf("\nCreating program: %s and %s\n", vertFn, fragFn);
 
 	string temp = readfile(vertFn);
@@ -212,14 +217,15 @@ GLuint createProgramFast(char* vertFn, char* fragFn) {
 	return program;
 }
 
-void beginFBO() {
-
+#ifndef PARTIAL
+void beginFBO() 
+{
 	glBindFramebuffer(GL_FRAMEBUFFER, g_fboID);
 	glClearColor(0,0,0,0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);			
-
 	// Remember: Different framebuffer - Same context!
 }
+
 void endFBO() {
 
 	// Updates smaller mipmaps levels
@@ -227,9 +233,10 @@ void endFBO() {
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
+#endif
 
-void updateConvUniforms() {
-
+void updateConvUniforms() 
+{
 	static float gaussian5[] = {
 		1/121.0f, 2/121.0f, 3/121.0f, 2/121.0f, 1/121.0f,					
 		2/121.0f, 7/121.0f, 11/121.0f, 7/121.0f, 2/121.0f,
@@ -249,6 +256,13 @@ void updateConvUniforms() {
 		-1/8.f, 1    , -1/8.f,
 		-1/8.f,-1/8.f,-1/8.f
 	};
+
+	static float unsharpen[9] = {
+		-1/8.f,-1/8.f,-1/8.f,
+		-1/8.f, 2    , -1/8.f,
+		-1/8.f,-1/8.f,-1/8.f
+	};
+
 	float offset[MAX_KERNEL_SIZE*2];
 	float* kernelPtr;
 	int kernelSize;
@@ -269,6 +283,14 @@ void updateConvUniforms() {
 			kernelPtr = (float*) laplacian;	
 			program = g_convEdgeProg;
 			break;
+
+		case CONV_UNSHARPEN:			
+			spread = 2;
+			kernelSize = 3;			
+			kernelPtr = (float*) unsharpen;		
+			program = g_convBlurProg;
+			break;
+
 		default:
 			printf("Undefined convolution filter!");
 			return;
@@ -284,8 +306,8 @@ void updateConvUniforms() {
 
 	g_convProg = program;
 	glUseProgram(g_convProg);
-	glUniform2fv(g_unifromConvOffset, kernelSize*kernelSize, offset);
-	glUniform1i(g_unifromKernelSize, kernelSize*kernelSize);
+	glUniform2fv(g_uniformConvOffset, kernelSize*kernelSize, offset);
+	glUniform1i(g_uniformKernelSize, kernelSize*kernelSize);
 	glUniform1fv(g_uniformKernelValue, kernelSize*kernelSize, kernelPtr);
 	glUniform1i(g_uniformBaseImage,0);
 	glUniform1i(g_uniformDepthImage,1);
@@ -294,8 +316,8 @@ void updateConvUniforms() {
 
 // ============================== Drawing Procedures =========================
 
-void drawFlag() {
-	
+void drawFlag() 
+{
 	glEnable(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, g_imageTex);
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
@@ -314,89 +336,8 @@ void drawFlag() {
 	glDisable(GL_TEXTURE_2D);
 }
 
-
-void drawObjects() {
-
-	GLUquadric* q = gluNewQuadric();
-
-	// Draw cube
-	float gs_ambdiff[] = {1,1,0,1};
-	float gs_emission[] = {0.5,0.5,0,1};
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, gs_ambdiff);	
-	glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, colorBlack);		
-	glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, colorWhite);
-
-	glPushMatrix();
-	{
-		glTranslated(8, 0.75+sin(g_frame*0.075)*0.25, 8);
-		glutSolidCube(1);
-	}
-	glPopMatrix();
-
-	glUseProgram(g_cubemapProg);
-	glActiveTexture(0);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, g_skybox->m_tex);
-
-	glPushMatrix();
-	{
-		glTranslated(8, 2.5+sin(g_frame*0.075)*0.5, -8);
-		glutSolidSphere(2,24,24);
-	}
-	glPopMatrix();
-	glUseProgram(0);
-
-	glPushMatrix();
-	{
-		glTranslated(-8,0,8);
-		glRotated(-45,0,1,0);
-		drawFlag();
-	}
-	glPopMatrix();
-
-	if(g_convMode == CONV_OBJECT)
-		beginFBO();
-	// Draw teapot
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, gs_ambdiff);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, colorBlack);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, colorWhite);		
-
-	glPushMatrix();
-	{
-		glTranslated(-5, 1, 0);
-		glutSolidTeapotFIX(2);
-	}
-	glPopMatrix();		
-
-
-	if(g_convMode == CONV_OBJECT)
-		endFBO();
-
-	glUseProgram(g_toonProg);
-	glPushMatrix();
-	{
-		glTranslated(5, 1, 0);
-		glRotated(-180,0,1,0);
-		glutSolidTeapotFIX(2);
-	}
-	glPopMatrix();		
-	glUseProgram(0);
-
-	// Draw rotating cylinder
-	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, colorWhite);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, colorBlack);
-	glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, colorWhite);		
-	glPushMatrix();
-	{
-		glTranslated(-10, 1, -10);
-		glRotated(g_frame, 0, 1, 0);
-		glTranslated(0, 0, -1);
-		gluCylinder(q, 1, 1, 2, 40, 40);
-	}
-	glPopMatrix();
-}
-
-void drawFloor() {
-
+void drawFloor() 
+{
 	static float ambdiff[] = {0.65f,0.65f,0.65f,1};
 	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, ambdiff);
 	glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, colorBlack);
@@ -423,10 +364,123 @@ void drawFloor() {
 	glPopMatrix();
 }	
 
-	GLuint g_rboID;
+void drawCloudyFloor()
+{
+#ifndef PARTIAL
+	glUseProgram(g_cloudProg);
+	glUniform3fv(g_uniformOffset, 1, g_noiseOffset);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_3D, g_noise3Dtex);
+	glUniform1i(g_uniformNoise, 0);
+	glEnable(GL_BLEND);
+#else
+	//TODO: Set cloud program unifroms here (pass 3d texture to it)
+#endif
+	drawFloor();
+#ifndef PARTIAL
+	glDisable(GL_BLEND);
+	glUseProgram(0);
+#endif
+}
 
-void initFBO() {
+void drawObjects() 
+{
+	GLUquadric* q = gluNewQuadric();
 
+	// Draw cube
+	float gs_ambdiff[] = {1,1,0,1};
+	float gs_emission[] = {0.5,0.5,0,1};
+	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, gs_ambdiff);	
+	glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, colorBlack);		
+	glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, colorWhite);
+
+	glPushMatrix();
+	{
+		glTranslated(8, 0.75+sin(g_frame*0.075)*0.25, 8);
+		glutSolidCube(1);
+	}
+	glPopMatrix();
+
+#ifndef PARTIAL
+	glUseProgram(g_cubemapProg);
+	glActiveTexture(0);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, g_skybox->m_tex);
+#else
+	//TODO: Use Cube Map program for this sphere and set texture for it
+#endif
+	glPushMatrix();
+	{
+		glTranslated(8, 2.5+sin(g_frame*0.075)*0.5, -8);
+		glutSolidSphere(2,24,24);
+	}
+	glPopMatrix();
+#ifndef PARTIAL
+	glUseProgram(0);
+#endif
+
+	glPushMatrix();
+	{
+		glTranslated(-8,0,8);
+		glRotated(-45,0,1,0);
+		drawFlag();
+	}
+	glPopMatrix();
+
+#ifndef PARTIAL
+	if(g_convMode == CONV_OBJECT)
+		beginFBO();
+#else
+	//TODO: [Advanced] draw only this teapot in the FBO
+#endif
+	// Draw teapot
+	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, gs_ambdiff);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, colorBlack);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, colorWhite);		
+
+	glPushMatrix();
+	{
+		glTranslated(-5, 1, 0);
+		glutSolidTeapotFIX(2);
+	}
+	glPopMatrix();		
+#ifndef PARTIAL
+	if(g_convMode == CONV_OBJECT)
+		endFBO();
+#endif
+
+#ifndef PARTIAL
+	glUseProgram(g_toonProg);
+#else
+	//TODO: Apply toon shader program for this teapot
+#endif
+	glPushMatrix();
+	{
+		glTranslated(5, 1, 0);
+		glRotated(-180,0,1,0);
+		glutSolidTeapotFIX(2);
+	}
+	glPopMatrix();		
+#ifndef PARTIAL
+	glUseProgram(0);
+#endif
+
+	// Draw rotating cylinder
+	glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, colorWhite);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, colorBlack);
+	glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, colorWhite);		
+	glPushMatrix();
+	{
+		glTranslated(-10, 1, -10);
+		glRotated(g_frame, 0, 1, 0);
+		glTranslated(0, 0, -1);
+		gluCylinder(q, 1, 1, 2, 40, 40);
+	}
+	glPopMatrix();
+}
+
+void initFBO() 
+{
+#ifndef PARTIAL
 	int texWidth = g_width; 
 	int texHeight = g_height;
 
@@ -473,19 +527,27 @@ void initFBO() {
 
 	// Get back to defualt framebuffer!
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);	
+#else
+	//TODO: Create a framebuffer object
+	//TODO: Set a color texture buffer and depth render buffer for framebuffer object
+	//TODO: Advanced: set texture depth buffer instead
+#endif
 }
 
 void deleteFBO() {
+#ifndef PARTIAL
 	glDeleteFramebuffers(1, &g_fboID);
 	glDeleteRenderbuffers(1, &g_rboID);
 	glDeleteTextures(1, &g_fboColorTex);
+#else
+	//TODO: Release FBO relted buffers and textures
+#endif
 }
 
-void drawScreenAligned() {
-
+void drawScreenAligned() 
+{
+#ifndef PARTIAL
 	glEnable(GL_DEPTH_TEST);
-	//glEnable(GL_ALPHA_TEST);
-	//glAlphaFunc(GL_GREATER,0);
 
 	glUseProgram(g_convProg);
 
@@ -495,12 +557,14 @@ void drawScreenAligned() {
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, g_fboColorTex);
 
-	glDisable(GL_LIGHTING);
-
 	if(g_convMode == CONV_OBJECT)
 		glEnable(GL_BLEND);
 	glBlendFunc(GL_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
+#else
+	//TODO: Bind to FBO color buffer texture object
+	//TODO: Apply convolusion program
+#endif
+	glDisable(GL_LIGHTING);
 	glMatrixMode(GL_PROJECTION);
 	glPushMatrix();	// Push Projection matrix!	
 	glLoadIdentity();
@@ -526,15 +590,16 @@ void drawScreenAligned() {
 
 	glMatrixMode(GL_PROJECTION);
 	glPopMatrix();	// Pop Projection matrix!
-	
+	glEnable(GL_LIGHTING);
 	glMatrixMode(GL_MODELVIEW);
-
-	glUseProgram(0);
-	glDisable(GL_ALPHA_TEST);
+#ifndef PARTIAL
+	glUseProgram(0);	
 	glDisable(GL_BLEND);
+#endif
 }
 
-void drawParticles() {
+void drawParticles() 
+{
 	glDisable(GL_LIGHTING);
 	glDisable(GL_TEXTURE_2D);
 	glEnable(GL_BLEND);
@@ -564,24 +629,8 @@ void drawWorld() {
 	static float l0_pos[] = {-10,10,10,1};
 	glLightfv(GL_LIGHT0, GL_POSITION, l0_pos);
 
-	glUseProgram(g_cloudProg);
-	{
-		glUniform3fv(g_uniformOffset, 1, g_noiseOffset);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_3D, g_noise3Dtex);
-		glUniform1i(g_uniformNoise, 0);
-		glEnable(GL_BLEND);
-		drawFloor();
-		glDisable(GL_BLEND);
-	}
-	glUseProgram(0);
-
-	
-	//glUseProgram(g_toonProg);
-	{
-		drawObjects();	
-	}
-	//glUseProgram(0);	
+	drawCloudyFloor();
+	drawObjects();	
 
 	glPushMatrix();
 	{
@@ -595,55 +644,53 @@ void drawWorld() {
 // ============================== Init Procedures =========================
 
 
-void initParticles() {
-
+void initParticles() 
+{
+	// Init particle program
 	g_particlesProg = createProgramFast(SHADER_PARTICLES_VERT, SHADER_PARTICLES_FRAG);
 
+#ifndef PARTIAL
 	g_uniformTime = glGetUniformLocation(g_particlesProg, "time");
 	g_attribParam = glGetAttribLocation(g_particlesProg, "Param");
+#else
+	//TODO: Get particle program uniforms and attributes
+#endif
 
+	// Init particle random data
 	float params[8000][2];
-	for(int i=0;i<8000;i++) {		
+	for(int i=0;i<8000;i++) 
+	{		
 		params[i][0] = (float)RANDOM;
 		params[i][1] = (float)RANDOM;		
 	}
 
+	// Transfer particle data to GPU
 	glGenBuffers(1, &g_paramsVBO);	
 	glBindBuffer(GL_ARRAY_BUFFER, g_paramsVBO);
 	glBufferData(GL_ARRAY_BUFFER, 8000*2*4, params, GL_STATIC_DRAW);		
-
-	glVertexAttribPointer(g_attribParam, 2, GL_FLOAT, false, 0, 0);
-	glVertexPointer(2, GL_FLOAT, 0, 0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-/*	
-	g_particlesList = glGenLists(1);
-	glNewList(g_particlesList, GL_COMPILE);
-	glBegin(GL_POINTS);
-	for(int i=0;i<8000;i++) {		
-		//glColor4d(RANDOM,RANDOM,RANDOM,RANDOM);
-		glVertexAttrib2d(g_attribParam, RANDOM, RANDOM);
-		glVertex3d(0,0,0);				
-	}
-	glEnd();
-	glEndList();
-*/	
-
-	
 }
 
-void initCubemap() {
+void initCubemap() 
+{
+	// Init cube map program
 	g_cubemapProg = createProgramFast(SHADER_CUBEMAP_VERT, SHADER_CUBEMAP_FRAG);	
 
+#ifndef PARTIAL
 	GLuint cubemap = glGetUniformLocation(g_toonProg, "CubeMap");
 	glUseProgram(g_cubemapProg);
 	glUniform1i(cubemap, 0);
 	glUseProgram(0);
+#else
+	//TODO: Get cube map program uniforms and set them
+#endif
 }
 
 void initToon() {
+	// Init toon shading program
 	g_toonProg = createProgramFast(SHADER_TOON_VERT, SHADER_TOON_FRAG);	
 
+#ifndef PARTIAL
 	g_uniformDiffuseColor = glGetUniformLocation(g_toonProg, "DiffuseColor");
 	g_uniformPhongColor = glGetUniformLocation(g_toonProg, "PhongColor");
 	g_uniformEdge = glGetUniformLocation(g_toonProg, "Edge");
@@ -655,11 +702,17 @@ void initToon() {
 	glUniform3f(g_uniformPhongColor, 0.8f,0.8f,0.8f);
 	glUniform3f(g_uniformDiffuseColor, 0.2f,0.2f,1);
 	glUseProgram(0);
+#else
+	//TODO: Get toon shading program's uniforms and set them
+#endif
 }
 
-void initCloud() {
+void initCloud() 
+{
+	// Init cloud program
 	g_cloudProg = createProgramFast(SHADER_CLOUD_VERT, SHADER_CLOUD_FRAG);
 
+#ifndef PARTIAL
 	g_uniformScale = glGetUniformLocation(g_cloudProg, "Scale");
 	g_uniformLightPos = glGetUniformLocation(g_cloudProg, "LightPos");
 	g_uniformSkyColor = glGetUniformLocation(g_cloudProg, "SkyColor");
@@ -673,23 +726,27 @@ void initCloud() {
 	glUniform4f(g_uniformSkyColor, 1,1,1,0);
 	glUniform4f(g_uniformCloudColor, 1,1,1,1);
 	glUseProgram(0);
+#else
+	//TODO: Get cloud program uniforms and set them
+#endif
 }
 
-void initConv() {
-	
+void initConv() 
+{
+	// Init convolution program
 	g_convBlurProg = createProgramFast(SHADER_CONV_VERT, SHADER_CONV_FS_BLUR_FRAG);
 	g_convEdgeProg = createProgramFast(SHADER_CONV_VERT, SHADER_CONV_FS_EDGE_FRAG);
 	
-	// They share the same uniforms so it doesn't matter
-
-	g_unifromConvOffset = glGetUniformLocation(g_convBlurProg, "Offset");
-	g_unifromKernelSize = glGetUniformLocation(g_convBlurProg, "KernelSize");
+	// Get convolution uniforms (they share the same uniforms so it doesn't matter)
+	g_uniformConvOffset = glGetUniformLocation(g_convBlurProg, "Offset");
+	g_uniformKernelSize = glGetUniformLocation(g_convBlurProg, "KernelSize");
 	g_uniformKernelValue = glGetUniformLocation(g_convBlurProg, "KernelValue");
 	g_uniformBaseImage = glGetUniformLocation(g_convBlurProg, "BaseImage");
 	g_uniformDepthImage = glGetUniformLocation(g_convBlurProg, "DepthImage");
 }
 
-void initNoise3DTexture() {
+void initNoise3DTexture() 
+{
     glEnable(GL_TEXTURE_3D);
 
 	glGenTextures(1, &g_noise3Dtex);
@@ -703,8 +760,8 @@ void initNoise3DTexture() {
 	glDisable(GL_TEXTURE_3D);
 }
 
-void init() {
-
+void init() 
+{
 	glEnable(GL_POINT_SMOOTH);
 	glEnable(GL_NORMALIZE);
 	glPointSize(3);	
@@ -736,8 +793,8 @@ void init() {
 //
 // Create camera transformation that captures the player's POV
 //
-void setupCamera() {
-
+void setupCamera() 
+{
 	// Convert player's angle to world angle
 	double angle = g_game.getAngle()*180.0/M_PI - 90;
 
@@ -747,8 +804,8 @@ void setupCamera() {
 
 // ============================== GLUT Callbacks =========================
 
-void display(void) {
-
+void display(void) 
+{
 	glDepthFunc(GL_LEQUAL);
 	glDisable(GL_BLEND);
 
@@ -762,9 +819,12 @@ void display(void) {
 	// Create camera transformation
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-
+#ifndef PARTIAL
 	if(g_convMode == CONV_FS)
 		beginFBO();
+#else
+	//TODO: Use FBO here
+#endif
 
 	// Draw Skybox
 	glPushMatrix();
@@ -787,10 +847,11 @@ void display(void) {
 
 	// Draw world
 	drawWorld();
-	
+
+#ifndef PARTIAL
 	if(g_convMode == CONV_FS) 
 		endFBO();	
-
+#endif
 	if(g_convMode != CONV_NONE)
 		drawScreenAligned();
 
@@ -798,8 +859,8 @@ void display(void) {
 	glutSwapBuffers();
 }
 
-void reshape(int width, int height) {
-
+void reshape(int width, int height) 
+{
 	g_width = width; g_height = height;
 
 	// Create perspective projection
@@ -815,8 +876,8 @@ void reshape(int width, int height) {
 	updateConvUniforms();
 }
 
-void timer(int value) {
-
+void timer(int value) 
+{
 	glutTimerFunc(16,timer,0);
 
 	g_noiseOffset[1]+=0.003f;
@@ -830,7 +891,8 @@ void timer(int value) {
 	g_frame++;		
 }
 
-void keyboardFunc(int key, int x, int y) {
+void keyboardDownFunc(int key, int x, int y) 
+{
 	switch(key) {
 	case GLUT_KEY_DOWN: 
 		g_game.setMoveBackward(true);
@@ -862,7 +924,8 @@ void keyboardFunc(int key, int x, int y) {
 	}
 }
 
-void keyboardUpFunc(int key, int x, int y) {
+void keyboardUpFunc(int key, int x, int y) 
+{
 	switch(key) {
 	case GLUT_KEY_DOWN: 
 		g_game.setMoveBackward(false);
@@ -881,12 +944,25 @@ void keyboardUpFunc(int key, int x, int y) {
 	}
 }
 
+void keyboardFunc(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case 27:	// Escape key
+		exit(0);
+		break;
+
+	default:
+		break;
+	}
+}
+
 int main(int argc, char **argv) {
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH | GLUT_MULTISAMPLE | GLUT_ALPHA);
-	glutInitWindowPosition(500, 500);
-	glutInitWindowSize(500, 500);
+	glutInitWindowPosition((glutGet(GLUT_SCREEN_WIDTH)-512)/2, (glutGet(GLUT_SCREEN_HEIGHT)-512)/2);
+	glutInitWindowSize(512, 512);
 
 	glutCreateWindow("ex09 - Using GLSL Shaders");
 
@@ -894,7 +970,8 @@ int main(int argc, char **argv) {
 	glutDisplayFunc(display);
 	glutIdleFunc(display);
 	glutTimerFunc(16,timer,0);
-	glutSpecialFunc(keyboardFunc);
+	glutKeyboardFunc(keyboardFunc);
+	glutSpecialFunc(keyboardDownFunc);
 	glutSpecialUpFunc(keyboardUpFunc);
 	
 	//glutFullScreen();

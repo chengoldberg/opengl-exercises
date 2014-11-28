@@ -23,11 +23,8 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\src_partial\ex09\GameLogic.h">
+    <ClInclude Include="..\..\..\src\ex09\GameLogic.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="..\..\..\src_partial\ex09\TODO.txt" />
   </ItemGroup>
 </Project>

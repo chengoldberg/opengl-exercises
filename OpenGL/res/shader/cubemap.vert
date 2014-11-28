@@ -1,3 +1,4 @@
+#version 120
 varying vec3 reflection;
 
 void main(void)
@@ -16,5 +17,6 @@ void main(void)
       //gl_FrontColor = vec4(diffuse*lightdiff*matdiff,1);
       
      vec3 esReflection = reflect(eyeToSurf, esNormal);
-     reflection = inverse(gl_NormalMatrix )* esReflection; 
+	 //reflection = esReflection;
+     reflection = transpose(gl_NormalMatrix )* esReflection; 
 }
