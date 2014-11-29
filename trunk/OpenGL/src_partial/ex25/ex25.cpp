@@ -16,7 +16,6 @@
  */
 
 //#define GLM_PRECISION_HIG
-
 #include <stdlib.h>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
@@ -34,7 +33,6 @@
 #include "CTargaImage.cpp"
 
 #define BUFFER_OFFSET(bytes)  ((GLubyte*) NULL + (bytes))
-#define GEOMETRY_SHADER_FILENAME "../res/shader/ex24.geom"
 
 #define MESH_FILEPATH "../res/mesh/sphere.off"
 #define TEX_FILEPATH "../res/tex_2d/tomb.tga"
@@ -65,7 +63,6 @@ glm::ivec2 g_prevMouse;
 GLuint g_program, g_attribPosition, g_uniformModelViewMatrix, g_uniformProjectionMatrix, g_uniformTexture;
 GLuint g_vbo[BUFFER_OBJECTS_TOTAL];
 GLuint g_vao[VAO_TOTAL];
-GLuint g_fbo;
 GLuint g_timerQuery;
 int g_totalElements;
 glm::mat4 g_modelView(1), g_projection;
@@ -161,28 +158,6 @@ void initVertexArrayObjects()
 	glBindVertexArray(0);
 }
 
-void initFrameBufferObject(int width, int height)
-{
-	GLuint rbo;
-
-	glGenFramebuffers(1, &g_fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, g_fbo);
-
-	// Now a depth buffer!	
-	glGenRenderbuffers(1, &rbo);
-	glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, width, height);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, rbo);
-
-	GLuint status = glCheckFramebufferStatus(GL_FRAMEBUFFER_EXT);
-	if (status != GL_FRAMEBUFFER_COMPLETE)
-		printf("Bad framebuffer init!\n");
-
-	// Get back to defualt framebuffer!
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
 void drawMesh() 
 {
 	glBindVertexArray(g_vao[VAO_VERTEX]);
@@ -240,8 +215,10 @@ void initShaders() {
 		"void main()\n"
 		"{\n"
 		"	ivec2 texSize = textureSize(uTexture, 0);\n"
-		"	ivec2 coord = ivec2(uInstanceId%texSize.x, uInstanceId/texSize.x);\n"
+		"	ivec2 coord = ivec2(mod(uInstanceId,texSize.x), uInstanceId/texSize.x);\n"
 		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition+vec3(coord.x*2,coord.y*2,0),1);\n"
+		"	// For some reason ATI won't make uTexture active if this line is removed!;\n"
+		"	fColor = vec4(texture(uTexture, vec2(0,0)).xyz, 1)*0;\n"
 		"	fColor = vec4(texelFetch(uTexture, coord, 0).xyz, 1);\n"
 		"}\n";
 
@@ -308,7 +285,7 @@ void init()
 */
 void setupCamera() 
 {	
-	g_modelView[3] *= 1+g_cameraTranslation;
+	g_modelView = glm::translate(g_modelView, g_cameraTranslation*glm::vec3(glm::transpose(g_modelView)[2]));
 
 	glm::vec3 vecY(g_modelView[0][1], g_modelView[1][1], g_modelView[2][1]);
 	g_modelView = glm::rotate(g_modelView, (float)-g_cameraRotationXY.x, vecY);
@@ -325,14 +302,6 @@ void display(void)
 	// Clear FrameBuffer
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);		
 
-	if(g_blendEnabled)
-	{
-		glEnable(GL_BLEND);
-	}
-	else
-	{
-		glDisable(GL_BLEND);
-	}
 	glPolygonMode(GL_FRONT_AND_BACK, g_wireframeEnabled?GL_LINE:GL_FILL);
 	
 	// Apply shaders
@@ -379,9 +348,7 @@ void reshape(int width, int height) {
 	// Setup projection transformation
 	//g_projection = glm::ortho(-5.0f,5.0f,-5.0f, 5.0f, -1.0f, 1.0f);	
 	//g_projection = glm::ortho(0.0f,100.0f,0.0f, 100.0f, -1.0f, 1.0f);	
-
-	g_projection = glm::perspective(90.0f, (float)width/height, 0.01f, 10.0f);
-	//initFrameBufferObject(width, height);
+	g_projection = glm::perspective(90.0f, (float)width/height, 0.01f, 1000.0f);
 
 	// Create projection transformation	
 	glUseProgram(g_program); // Remember to use program when setting variables
@@ -398,7 +365,7 @@ void motionFunc(int x, int y)
 
 	if(g_zoomMode)
 	{
-		g_cameraTranslation += dy/100.0f;
+		g_cameraTranslation += dy/10.0f;
 	}
 	else
 	{
