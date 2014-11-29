@@ -16,7 +16,7 @@
  */
 
 //#define GLM_PRECISION_HIG
-
+//#define PARTIAL
 #include <stdlib.h>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
@@ -34,7 +34,6 @@
 #include "CTargaImage.cpp"
 
 #define BUFFER_OFFSET(bytes)  ((GLubyte*) NULL + (bytes))
-#define GEOMETRY_SHADER_FILENAME "../res/shader/ex24.geom"
 
 #define MESH_FILEPATH "../res/mesh/sphere.off"
 #define TEX_FILEPATH "../res/tex_2d/tomb.tga"
@@ -247,24 +246,30 @@ void initShaders() {
 		"void main()\n"
 		"{\n"
 		"	ivec2 texSize = textureSize(uTexture, 0);\n"
-		"	ivec2 coord = ivec2(uInstanceId%texSize.x, uInstanceId/texSize.x);\n"
+		"	ivec2 coord = ivec2(mod(uInstanceId,texSize.x), uInstanceId/texSize.x);\n"
 		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition+vec3(coord.x*2,coord.y*2,0),1);\n"
+		"	// For some reason ATI won't make uTexture active if this line is removed!;\n"
+		"	fColor = vec4(texture(uTexture, vec2(0,0)).xyz, 1)*0;\n"
 		"	fColor = vec4(texelFetch(uTexture, coord, 0).xyz, 1);\n"
 		"}\n";
 #else
 		"#version 330\n"
+		"uniform sampler2D uTexture;\n"
 		"in vec3 aPosition;\n"
 		"uniform mat4 uModelViewMatrix;\n"
 		"uniform mat4 uProjectionMatrix;\n"
-		"uniform sampler2D uTexture;\n"
 		"out vec4 fColor;\n"
 		"\n"
 		"void main()\n"
 		"{\n"
+
 		"	ivec2 texSize = textureSize(uTexture, 0);\n"
 		"	ivec2 coord = ivec2(gl_InstanceID%texSize.x, gl_InstanceID/texSize.x);\n"
-		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(aPosition+vec3(coord.x*2,coord.y*2,0),1);\n"
+		"	gl_Position = uProjectionMatrix * uModelViewMatrix * vec4(fColor.xyz+aPosition+vec3(coord.x*2,coord.y*2,0),1);\n"
+		"	// For some reason ATI won't make uTexture active if this line is removed!;\n"
+		"	fColor = vec4(texture(uTexture, vec2(0,0)).xyz, 1)*0;\n"
 		"	fColor = vec4(texelFetch(uTexture, coord, 0).xyz, 1);\n"
+
 		"}\n";
 #endif
 
@@ -331,7 +336,7 @@ void init()
 */
 void setupCamera() 
 {	
-	g_modelView[3] *= 1+g_cameraTranslation;
+	g_modelView = glm::translate(g_modelView, g_cameraTranslation*glm::vec3(glm::transpose(g_modelView)[2]));
 
 	glm::vec3 vecY(g_modelView[0][1], g_modelView[1][1], g_modelView[2][1]);
 	g_modelView = glm::rotate(g_modelView, (float)-g_cameraRotationXY.x, vecY);
@@ -348,14 +353,6 @@ void display(void)
 	// Clear FrameBuffer
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);		
 
-	if(g_blendEnabled)
-	{
-		glEnable(GL_BLEND);
-	}
-	else
-	{
-		glDisable(GL_BLEND);
-	}
 	glPolygonMode(GL_FRONT_AND_BACK, g_wireframeEnabled?GL_LINE:GL_FILL);
 	
 	// Apply shaders
@@ -403,7 +400,7 @@ void reshape(int width, int height) {
 	//g_projection = glm::ortho(-5.0f,5.0f,-5.0f, 5.0f, -1.0f, 1.0f);	
 	//g_projection = glm::ortho(0.0f,100.0f,0.0f, 100.0f, -1.0f, 1.0f);	
 
-	g_projection = glm::perspective(90.0f, (float)width/height, 0.01f, 10.0f);
+	g_projection = glm::perspective(90.0f, (float)width/height, 0.01f, 1000.0f);
 	//initFrameBufferObject(width, height);
 
 	// Create projection transformation	
@@ -421,7 +418,7 @@ void motionFunc(int x, int y)
 
 	if(g_zoomMode)
 	{
-		g_cameraTranslation += dy/100.0f;
+		g_cameraTranslation += dy/10.0f;
 	}
 	else
 	{
