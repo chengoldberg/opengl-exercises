@@ -6,7 +6,7 @@ attribute vec3 aNormal;
 uniform mat3 uNormalMatrix;
 uniform mat4 uModelViewMatrix;
 uniform mat4 uProjectionMatrix;
-uniform mediump bool uLightingEnabled;
+uniform bool uLightingEnabled;
 
 varying vec3 vFrontColor;
 varying vec3 vBackColor;
