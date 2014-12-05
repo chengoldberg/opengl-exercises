@@ -1,4 +1,4 @@
-#version 330
+﻿#version 150
 
 #define M_PI 3.1415926535897932384626433832795
 
@@ -10,7 +10,8 @@ out vec4 gColor;
 
 uniform mat4 uProjectionMatrix;
 
-// No need to declare these
+// Valid from version 330
+/*
 in gl_PerVertex
 {
   vec4 gl_Position;
@@ -20,6 +21,7 @@ out gl_PerVertex
 {
 	vec4 gl_Position;
 };
+*/
 
 void main()
 {

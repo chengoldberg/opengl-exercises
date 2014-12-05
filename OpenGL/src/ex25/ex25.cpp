@@ -72,12 +72,6 @@ float g_cameraTranslation;
 GLuint g_textures[TEXTURE_OBJECTS_TOTAL];
 glm::ivec2 g_texSize;
 
-void rotate(double x, double y) 
-{
-	g_cameraRotationXY.x += x;
-	g_cameraRotationXY.y += y;
-}
-
 // ============================== Helper Functions =========================
 
 GLuint buildProgram(const char* srcVert, const char* srcFrag) 
@@ -211,7 +205,7 @@ void initShaders() {
 #endif
 	const char* srcVert = 
 #ifdef PARTIAL		
-		"#version 330\n"
+		"#version 150\n"
 		"in vec3 aPosition;\n"
 		"uniform mat4 uModelViewMatrix;\n"
 		"uniform mat4 uProjectionMatrix;\n"
@@ -229,7 +223,7 @@ void initShaders() {
 		"	fColor = vec4(texelFetch(uTexture, coord, 0).xyz, 1);\n"
 		"}\n";
 #else
-		"#version 330\n"
+		"#version 150\n"
 		"uniform sampler2D uTexture;\n"
 		"in vec3 aPosition;\n"
 		"uniform mat4 uModelViewMatrix;\n"
@@ -250,7 +244,7 @@ void initShaders() {
 #endif
 
 	const char* srcFrag = 
-		"#version 330\n"
+		"#version 150\n"
 		"in vec4 fColor;\n"
 		"out vec4 oColor;\n"
 		"\n"
@@ -288,9 +282,6 @@ void init()
 
 	// Set background color to gray
 	glClearColor(0.25, 0.25, 0.25, 1);
-
-	// Init states		
-	glPointSize(2);
 
 	// Init feedback vertex data
 	initVertexBufferObjects();
@@ -350,8 +341,8 @@ void display(void)
 	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(modelView));	
 	
 	// Print measured drawing time of last draw (if any) to prevent stall
-	static int frameCounter = 0;
-	if(frameCounter != 0 && frameCounter++ % 33 == 0)
+	static int frameCounter = 1;
+	if(frameCounter++ % 33 == 0)
 	{
 		GLuint64 drawTime;
 		glGetQueryObjectui64v(g_timerQuery, GL_QUERY_RESULT, &drawTime);
@@ -397,7 +388,8 @@ void motionFunc(int x, int y)
 	else
 	{
 		// Rotate model
-		rotate(dx, dy);
+		g_cameraRotationXY.x += dx;
+		g_cameraRotationXY.y += dy;
 	}
 
 	// Remember mouse location 
@@ -447,13 +439,13 @@ void timer(int value)
 
 int main(int argc, char **argv) {
 
-	glutInitContextVersion(3,3);
+	glutInitContextVersion(3,2);
 	glutInitContextProfile(GLUT_CORE_PROFILE);
 	glutInitContextFlags(GLUT_DEBUG);
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-	glutInitWindowPosition(0, 0);
+	glutInitWindowPosition((glutGet(GLUT_SCREEN_WIDTH)-512)/2, (glutGet(GLUT_SCREEN_HEIGHT)-512)/2);
 	glutInitWindowSize(512, 512);
 
 	int windowId = glutCreateWindow("ex25 - Instanced Rendering Grid");
@@ -486,9 +478,7 @@ int main(int argc, char **argv) {
 	}
 
 	std::cout << "Usage:" << std::endl;
-	std::cout << "left arrow/right arrow		Draw and process less/more particles" << std::endl;
-	std::cout << "down arrow/up arrow			Speed up or down particles" << std::endl;
-	std::cout << "Use mouse to look around" << std::endl;
+	std::cout << "Use left mouse button to look around and right mouse button to zoom" << std::endl;
 
 	glutMainLoop();
 

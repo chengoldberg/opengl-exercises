@@ -189,7 +189,7 @@ void initShaders() {
 	//TODO: Add color vertex attribute
 	//TODO: Add ModelView and Projection uniform matrices
 	const char* srcVert = 
-		"#version 330\n"
+		"#version 150\n"
 		"in vec3 aPosition;\n"
 		"\n"
 		"void main()\n"
@@ -198,7 +198,7 @@ void initShaders() {
 		"}\n";
 
 	const char* srcFrag = 
-		"#version 330\n"
+		"#version 150\n"
 		"out vec4 oColor;\n"
 		""
 		"void main()\n"
@@ -314,8 +314,8 @@ void reshape(int width, int height) {
 	//TODO: Update projection in shaders
 }
 
-void motionFunc(int x, int y) {
-
+void motionFunc(int x, int y) 
+{
 	// Calc difference from previous mouse location
 	Point prev = g_prevMouse;
 	int dx = prev.x - x;
@@ -328,20 +328,34 @@ void motionFunc(int x, int y) {
 	g_prevMouse = Point(x,y);	
 }
 
-void mouseFunc(int button, int state, int x, int y) {
+void mouseFunc(int button, int state, int x, int y) 
+{
 	if(button == GLUT_LEFT_BUTTON){
 		g_prevMouse = Point(x,y);	
 	}
 }
 
+void keyboardFunc(unsigned char key, int x, int y)
+{
+	switch (key)
+	{
+	case 27:	// Escape key
+		exit(0);
+		break;
+
+	default:
+		break;
+	}
+}
+
 int main(int argc, char **argv) {
 
-	glutInitContextVersion(3,3);
+	glutInitContextVersion(3,2);
 	glutInitContextProfile(GLUT_CORE_PROFILE);
 	glutInitContextFlags(GLUT_DEBUG);
 
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 	glutInitWindowPosition((glutGet(GLUT_SCREEN_WIDTH)-512)/2, (glutGet(GLUT_SCREEN_HEIGHT)-512)/2);
 	glutInitWindowSize(512, 512);
 
@@ -352,7 +366,7 @@ int main(int argc, char **argv) {
 	glutIdleFunc(display);
 	glutMotionFunc(motionFunc);
 	glutMouseFunc(mouseFunc);
-	//glutInit
+	glutKeyboardFunc(keyboardFunc);
 	//glutFullScreen();
 
 	// Glew limitation 

@@ -31,7 +31,7 @@
 #include <vector>
 
 #define BUFFER_OFFSET(bytes)  ((GLubyte*) NULL + (bytes))
-#define MAX_VERTICES_AMOUNT_EXPONENT 20
+#define MAX_VERTICES_AMOUNT_EXPONENT 16
 #define VERTICES_AMOUNT (1<<MAX_VERTICES_AMOUNT_EXPONENT)
 struct Point
 {
@@ -173,7 +173,8 @@ void initVertexBufferObjects()
 	{
 		vertices[i] = glm::linearRand(glm::vec3(-1,-1,-1),glm::vec3(1,1,1));	
 		directions[i] = glm::normalize(glm::ballRand(2.0f));		
-		colors[i] = glm::rgbColor(glm::vec3(360*static_cast<float>(rand())/RAND_MAX,1,1));
+		//colors[i] = glm::rgbColor(glm::vec3(360*static_cast<float>(rand())/RAND_MAX,1,1));
+		colors[i] = 0.5f*(vertices[i]+glm::vec3(1,1,1));
 	}
 
 	// Create identifiers
@@ -251,10 +252,10 @@ void drawAndProcessParticles()
 	glBindVertexArray(0);
 }
 
-void initShaders() {
-	
+void initShaders() 
+{
 	const char* srcVert = 
-		"#version 330\n"
+		"#version 150\n"
 		"out vec4  vColor;\n"
 		"in vec3 aPosition;\n"
 		"in vec3 aDirection;\n"
@@ -281,7 +282,7 @@ void initShaders() {
 		"}\n";
 
 	const char* srcFrag = 
-		"#version 330\n"
+		"#version 150\n"
 		"in vec4  vColor;\n"
 		"out vec4 oColor;\n"
 		"\n"
@@ -342,8 +343,7 @@ void setupCamera()
 
 void display(void) 
 {
-	//glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
+	glEnable(GL_DEPTH_TEST);
 
 	// Clear FrameBuffer
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);		
@@ -452,13 +452,13 @@ void timer(int value)
 
 int main(int argc, char **argv) {
 
-	glutInitContextVersion(3,3);
+	glutInitContextVersion(3,2);
 	glutInitContextProfile(GLUT_CORE_PROFILE);
 	glutInitContextFlags(GLUT_DEBUG);
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-	glutInitWindowPosition(0, 0);
+	glutInitWindowPosition((glutGet(GLUT_SCREEN_WIDTH)-512)/2, (glutGet(GLUT_SCREEN_HEIGHT)-512)/2);
 	glutInitWindowSize(512, 512);
 
 	glutCreateWindow("ex21 - Particles Feedback");
