@@ -11,7 +11,7 @@ varying vec3 vBackColor;
 
 vec3 calcLighting(vec3 normal, vec4 viewPosition);
 
-uniform mediump bool uLightingEnabled;
+uniform bool uLightingEnabled;
 
 void main(void)
 {

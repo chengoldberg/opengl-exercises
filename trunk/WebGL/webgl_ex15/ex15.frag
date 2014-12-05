@@ -1,7 +1,7 @@
 precision mediump float;
 
 uniform mediump vec3 uColor;
-uniform mediump bool uTextureEnabled;
+uniform bool uTextureEnabled;
 
 varying vec3 vColor;
 

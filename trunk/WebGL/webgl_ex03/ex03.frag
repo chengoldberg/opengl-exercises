@@ -1,7 +1,7 @@
 precision mediump float;
 
 uniform mediump vec3 uColor;
-uniform mediump bool uTextureEnabled;
+uniform bool uTextureEnabled;
 uniform sampler2D uTexture0;
 
 varying vec2 vTexCoord;
