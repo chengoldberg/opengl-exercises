@@ -31,7 +31,7 @@
 #include "cgl/gl/common.hpp"
 
 #define BUFFER_OFFSET(bytes)  ((GLubyte*) NULL + (bytes))
-#define MAX_VERTICES_AMOUNT_EXPONENT 15
+#define MAX_VERTICES_AMOUNT_EXPONENT 12
 #define VERTICES_AMOUNT (1<<MAX_VERTICES_AMOUNT_EXPONENT)
 #define GEOMETRY_SHADER_FILENAME "../res/shader/ex23.geom"
 
@@ -51,7 +51,7 @@ enum EVbo
 bool g_wireframeEnabled;
 bool g_blendEnabled;
 bool g_zoomMode;
-float g_cameraTrasnlation;
+float g_cameraTranslation;
 glm::ivec2 g_prevMouse;
 glm::ivec2 g_cameraRotationXY;
 float g_particleSpeed;
@@ -61,17 +61,6 @@ GLuint g_program, g_attribPosition, g_attribColor, g_uniformModelViewMatrix, g_u
 GLuint g_vbo[VBO_TOTAL];
 GLuint g_vao[VAO_TOTAL];
 glm::mat4 g_modelView(1), g_projection;
-
-/*
- * Rotate view along x and y axes 
- * @param x Angles to rotate around x
- * @param y Angles to rotate around y
- */
-void rotate(double x, double y) 
-{
-	g_cameraRotationXY.x += x;
-	g_cameraRotationXY.y += y;
-}
 
 // ============================== Helper Functions =========================
 
@@ -185,7 +174,7 @@ void drawParticles()
 void initShaders() {
 	
 	const char* srcVert = 
-		"#version 330\n"
+		"#version 150\n"
 		"out vec4  vColor;\n"
 		"in vec3 aPosition;\n"
 		"in vec3 aColor;\n"
@@ -207,7 +196,7 @@ void initShaders() {
 
 	const char* srcFrag = 
 #ifdef PARTIAL
-		"#version 330\n"
+		"#version 150\n"
 		"in vec4  vColor;\n"
 		"out vec4 oColor;\n"
 		"\n"
@@ -216,7 +205,7 @@ void initShaders() {
 		"	oColor = vColor;\n"
 		"}\n";
 #else
-		"#version 330\n"
+		"#version 150\n"
 		"in vec4  gColor;\n"
 		"out vec4 oColor;\n"
 		"\n"
@@ -271,7 +260,7 @@ void init()
 void setupCamera() 
 {	
 	// Want to translate along local Z (0,0,1,0), which is the 3rd row of the matrix
-	g_modelView = glm::translate(g_modelView, g_cameraTrasnlation*glm::vec3(glm::transpose(g_modelView)[2]));
+	g_modelView = glm::translate(g_modelView, g_cameraTranslation*glm::vec3(glm::transpose(g_modelView)[2]));
 
 	glm::vec3 vecY(g_modelView[0][1], g_modelView[1][1], g_modelView[2][1]);
 	g_modelView = glm::rotate(g_modelView, (float)-g_cameraRotationXY.x, vecY);
@@ -280,7 +269,7 @@ void setupCamera()
 	g_modelView = glm::rotate(g_modelView, (float)-g_cameraRotationXY.y, vecX);
 
 	g_cameraRotationXY = glm::ivec2(0,0);
-	g_cameraTrasnlation = 0;
+	g_cameraTranslation = 0;
 }
 
 void display(void) 
@@ -344,12 +333,13 @@ void motionFunc(int x, int y)
 
 	if(g_zoomMode)
 	{
-		g_cameraTrasnlation += dy/100.0f;
+		g_cameraTranslation += dy/100.0f;
 	}
 	else
 	{
 		// Rotate model
-		rotate(dx, dy);
+		g_cameraRotationXY.x += dx;
+		g_cameraRotationXY.y += dy;
 	}
 
 	// Remember mouse location 
@@ -423,13 +413,13 @@ void timer(int value)
 
 int main(int argc, char **argv) {
 
-	glutInitContextVersion(3,3);
+	glutInitContextVersion(3,2);
 	glutInitContextProfile(GLUT_CORE_PROFILE);
 	glutInitContextFlags(GLUT_DEBUG);
 
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
-	glutInitWindowPosition(0, 0);
+	glutInitWindowPosition((glutGet(GLUT_SCREEN_WIDTH)-512)/2, (glutGet(GLUT_SCREEN_HEIGHT)-512)/2);
 	glutInitWindowSize(512, 512);
 
 	glutCreateWindow("ex23 - Geometry Shader Circle Points");
