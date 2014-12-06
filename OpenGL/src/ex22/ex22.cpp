@@ -263,7 +263,7 @@ void calcNormalsGPU(std::vector<glm::vec3>& normals)
 	glBeginQuery(GL_TIME_ELAPSED, g_queries[QUERY_CALC_TIME]);
 	{
 		glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, g_vbo[VBO_NORMAL]);
-		glBeginTransformFeedback(GL_TRIANGLES); // For some reason on AMD card it crashes if GL_POINTS in contradiction 
+		glBeginTransformFeedback(GL_POINTS); // For some reason on AMD card it crashes if GL_POINTS in contradiction 
 												// to what the reference says https://www.opengl.org/sdk/docs/man3/xhtml/glBeginTransformFeedback.xml
 		{
 			glBindVertexArray(g_vao[VAO_VERTEX]);
@@ -389,7 +389,7 @@ int main(int argc, char **argv) {
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
 	glutInitWindowPosition(0, 0);
 	glutInitWindowSize(512, 512);
-	glutCreateWindow("ex21 - Particles Feedback");
+	glutCreateWindow("ex22 - Transform Feedback Benchmark");
 	
 	// Glew limitation 
 	// Ref: http://openglbook.com/glgenvertexarrays-access-violationsegfault-with-glew/
