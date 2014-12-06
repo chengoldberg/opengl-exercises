@@ -31,8 +31,6 @@
 #include "cgl/gl/common.hpp"
 
 #define BUFFER_OFFSET(bytes)  ((GLubyte*) NULL + (bytes))
-#define MAX_VERTICES_AMOUNT_EXPONENT 15
-#define VERTICES_AMOUNT (1<<MAX_VERTICES_AMOUNT_EXPONENT)
 #define GEOMETRY_SHADER_FILENAME "../res/shader/ex24.geom"
 
 enum EVao
@@ -48,10 +46,11 @@ enum EVbo
 };
 
 bool g_wireframeEnabled;
-bool g_blendEnabled;
+bool g_multisampleEnabled;
 bool g_zoomMode;
+float g_radius;
 glm::ivec2 g_prevMouse;
-GLuint g_program, g_attribPosition, g_uniformModelViewMatrix, g_uniformProjectionMatrix;
+GLuint g_program, g_attribPosition, g_uniformModelViewMatrix, g_uniformProjectionMatrix, g_uniformRadius;
 GLuint g_vbo[VBO_TOTAL];
 GLuint g_vao[VAO_TOTAL];
 GLuint g_fbo;
@@ -112,7 +111,7 @@ void updateVertexBufferObjects()
 {
 	// Transfer data
 	glBindBuffer(GL_ARRAY_BUFFER, g_vbo[VBO_POSITION]);
-	glBufferData(GL_ARRAY_BUFFER, VERTICES_AMOUNT*3*sizeof(float), g_vertices.data(), GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, g_vertices.size()*sizeof(glm::vec3), g_vertices.data(), GL_STATIC_DRAW);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
@@ -233,15 +232,16 @@ void initShaders() {
 	g_attribPosition = glGetAttribLocation(g_program, "aPosition");
 	g_uniformModelViewMatrix = glGetUniformLocation(g_program, "uModelViewMatrix");
 	g_uniformProjectionMatrix = glGetUniformLocation(g_program, "uProjectionMatrix");
+	g_uniformRadius = glGetUniformLocation(g_program, "uRadius");
 }
 
 
 void init() 
 {	
 	g_wireframeEnabled = true;
-	g_blendEnabled = false;
+	g_multisampleEnabled = false;
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
+	g_radius = 2;
 	g_zoomMode = false;
 
 	// Init shaders
@@ -252,6 +252,8 @@ void init()
 
 	// Init states		
 	glPointSize(2);
+
+	glEnable(GL_MULTISAMPLE);
 
 	// Place camera	
 	//g_modelView = glm::translate(g_modelView, glm::vec3(0,0,-1.5));
@@ -277,13 +279,13 @@ void display(void)
 	// Clear FrameBuffer
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);		
 
-	if(g_blendEnabled)
+	if(g_multisampleEnabled)
 	{
-		glEnable(GL_BLEND);
+		glEnable(GL_MULTISAMPLE);
 	}
 	else
 	{
-		glDisable(GL_BLEND);
+		glDisable(GL_MULTISAMPLE);
 	}
 	glPolygonMode(GL_FRONT_AND_BACK, g_wireframeEnabled?GL_LINE:GL_FILL);
 	
@@ -297,6 +299,8 @@ void display(void)
 	// Update model-view matrix
 	glUniformMatrix4fv(g_uniformModelViewMatrix, 1, false, glm::value_ptr(g_modelView));	
 	
+	glUniform1f(g_uniformRadius, g_radius);
+
 	//glBindFramebuffer(GL_FRAMEBUFFER, g_fbo);
 	// draw lines
 	drawLines();
@@ -320,7 +324,8 @@ void reshape(int width, int height) {
 
 	// Setup projection transformation
 	//g_projection = glm::ortho(-5.0f,5.0f,-5.0f, 5.0f, -1.0f, 1.0f);	
-	g_projection = glm::ortho(0.0f,100.0f,0.0f, 100.0f, -1.0f, 1.0f);	
+	float aspectRatio = static_cast<float>(width)/height;
+	g_projection = glm::ortho(0.0f,100.0f,50-50/aspectRatio, 50+50/aspectRatio, -1.0f, 1.0f);	
 
 	initFrameBufferObject(width, height);
 
@@ -359,6 +364,16 @@ void keyboardSpecialFunc(int key, int x, int y)
 {
 	switch(key) {
 	case GLUT_KEY_DOWN: 
+		g_radius -= 0.15;
+		break;
+	case GLUT_KEY_UP:
+		g_radius += 0.15;
+		break;
+	case GLUT_KEY_F1:
+		g_multisampleEnabled ^= true;
+		break;
+	case GLUT_KEY_F2:
+		g_wireframeEnabled ^= true;
 		break;
 	}
 }
@@ -389,7 +404,7 @@ int main(int argc, char **argv) {
 	glutInitContextFlags(GLUT_DEBUG);
 
 	glutInit(&argc, argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_MULTISAMPLE);
 	glutInitWindowPosition(0, 0);
 	glutInitWindowSize(512, 512);
 
@@ -423,8 +438,9 @@ int main(int argc, char **argv) {
 	}
 
 	std::cout << "Usage:" << std::endl;
-	std::cout << "left arrow/right arrow		Draw and process less/more particles" << std::endl;
-	std::cout << "down arrow/up arrow			Speed up or down particles" << std::endl;
+	std::cout << "F1							Toggle Multisample" << std::endl;
+	std::cout << "F2							Toggle Wireframe" << std::endl;
+	std::cout << "down arrow/up arrow			Change radius" << std::endl;
 	std::cout << "Use mouse to look around" << std::endl;
 
 	glutMainLoop();

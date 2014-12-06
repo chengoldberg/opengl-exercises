@@ -1,4 +1,4 @@
-﻿#version 330
+#version 330
 
 #define M_PI 3.1415926535897932384626433832795
 
@@ -6,6 +6,7 @@ layout(lines_adjacency) in;
 layout(triangle_strip, max_vertices=32) out;
 
 uniform mat4 uProjectionMatrix;
+uniform float uRadius;
 
 // No need to declare these
 in gl_PerVertex
@@ -113,7 +114,7 @@ void main()
 	if(turn==0)
 		gColor = vec4(1,0,0,1);
 	*/
-	float r = 2;
+	float r = uRadius;
 
 	vec4 p0 = gl_in[1].gl_Position;
 	vec4 p1 = gl_in[2].gl_Position;

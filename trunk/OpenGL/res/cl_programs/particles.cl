@@ -1,8 +1,8 @@
 #define IMAGE_SIZE 256
-#define CANVAS_SIZE 10.0
-#define GRAVITY 0.0005
-#define THRESHOLD_VELOCITY 0.0001
-#define BOUNCE_FACTOR 0.33
+#define CANVAS_SIZE 10.0f
+#define GRAVITY 0.0005f
+#define THRESHOLD_VELOCITY 0.0001f
+#define BOUNCE_FACTOR 0.33f
 
 __kernel void animate(__global float4 *particles_position_vbo, __global float4 *particles_velocity_vbo, __write_only image2d_t floorIm, __write_only image2d_t wallIm, __global float4 *particles_color_vbo, __global uint *particles_wait_time, uint frame)
 {
@@ -32,12 +32,12 @@ __kernel void animate(__global float4 *particles_position_vbo, __global float4 *
 		if(length(particles_velocity_vbo[gid]) < THRESHOLD_VELOCITY)
 		{
 			particles_velocity_vbo[gid].x = NAN;
-			particles_position_vbo[gid].y = 0.001;
+			particles_position_vbo[gid].y = 0.001f;
 		}
 		
 		// Find image coordinates
 		float2 pos = particles_position_vbo[gid].xz;
-		float2 relPos = (float2)((pos.x + CANVAS_SIZE/2.0)/CANVAS_SIZE, pos.y/CANVAS_SIZE);
+		float2 relPos = (float2)((pos.x + CANVAS_SIZE/2.0f)/CANVAS_SIZE, pos.y/CANVAS_SIZE);
 		int2 floorCoord = convert_int2(relPos*IMAGE_SIZE);
 		
 		// If inside image, color it			
@@ -61,13 +61,13 @@ __kernel void animate(__global float4 *particles_position_vbo, __global float4 *
 		if(length(particles_velocity_vbo[gid]) < THRESHOLD_VELOCITY)
 		{
 			particles_velocity_vbo[gid].x = NAN;
-			particles_position_vbo[gid].z = 0.001;
+			particles_position_vbo[gid].z = 0.001f;
 		}
 
 		
 		// Find image coordinates
 		float2 pos = particles_position_vbo[gid].xy;
-		float2 relPos = (float2)((pos.x + CANVAS_SIZE/2.0)/CANVAS_SIZE, pos.y/CANVAS_SIZE);
+		float2 relPos = (float2)((pos.x + CANVAS_SIZE/2.0f)/CANVAS_SIZE, pos.y/CANVAS_SIZE);
 		int2 floorCoord = convert_int2(relPos*IMAGE_SIZE);
 		
 		// If inside image, color it			

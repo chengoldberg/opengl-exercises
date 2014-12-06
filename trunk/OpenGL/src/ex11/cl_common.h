@@ -20,15 +20,15 @@ public:
 		cl_uint numPlatforms;
 		cl_platform_id firstPlatformId;
 		cl_context context;
-
+		cl_platform_id platforms[2];
 		// Get first platform - don't care about rest
-		errNum = clGetPlatformIDs(1, &firstPlatformId, &numPlatforms);
+		errNum = clGetPlatformIDs(2, platforms, &numPlatforms);
 		if(errNum != CL_SUCCESS) 
 		{
 			std::cerr << "Failed to obtain platform list" << std::endl;
 			return NULL;
 		}
-
+		firstPlatformId = platforms[0];
 		// prepare context description
 		cl_context_properties contextProperties[] = 
 		{
@@ -40,9 +40,9 @@ public:
 		
 		// Create device list
 		cl_uint devNum;
-		errNum = clGetDeviceIDs(firstPlatformId, CL_DEVICE_TYPE_GPU, 0, NULL, &devNum);		
+		errNum = clGetDeviceIDs(firstPlatformId, CL_DEVICE_TYPE_ALL, 0, NULL, &devNum);		
 		cl_device_id* devices = new cl_device_id[devNum];
-		errNum = clGetDeviceIDs(firstPlatformId, CL_DEVICE_TYPE_GPU, devNum, devices, NULL);
+		errNum = clGetDeviceIDs(firstPlatformId, CL_DEVICE_TYPE_ALL, devNum, devices, NULL);
 
 		// Create the context
 		context = clCreateContext(contextProperties, 1, &devices[0], NULL, NULL, &errNum);

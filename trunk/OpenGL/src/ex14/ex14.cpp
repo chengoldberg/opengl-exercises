@@ -198,8 +198,8 @@ void initShaders()
 void initDebug()
 {
 	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-	glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
-	glDebugMessageCallback(&debugOutput, NULL);
+	//glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+	//glDebugMessageCallback(&debugOutput, NULL);
 }
 
 void init() 
@@ -344,7 +344,7 @@ int main(int argc, char **argv)
 {
 	try
 	{
-		glutInitContextVersion(4,3);
+		glutInitContextVersion(3,3);
 		glutInitContextProfile(GLUT_CORE_PROFILE);
 		glutInitContextFlags(GLUT_DEBUG);
 
