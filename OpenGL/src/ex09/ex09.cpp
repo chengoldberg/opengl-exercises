@@ -80,7 +80,7 @@ GLuint			g_toonProg, g_cloudProg, g_uniformScale, g_convProg, g_convBlurProg, g_
 				g_particlesProg, g_uniformTime, g_particlesList,
 				g_uniformDiffuseColor, g_uniformPhongColor, g_uniformEdge, g_uniformPhong,
 				g_uniformConvOffset, g_uniformKernelSize, g_uniformKernelValue,g_uniformBaseImage, g_uniformDepthImage,
-				g_attribParam, g_paramsVBO,
+				g_attribParam, g_paramsVBO, g_vertVBO,
 				g_rboID;
 float			g_noiseOffset[3] = {0,0,0};
 int				g_height, g_width;
@@ -403,7 +403,7 @@ void drawObjects()
 
 #ifndef PARTIAL
 	glUseProgram(g_cubemapProg);
-	glActiveTexture(0);
+	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, g_skybox->m_tex);
 #else
 	//TODO: Use Cube Map program for this sphere and set texture for it
@@ -559,7 +559,7 @@ void drawScreenAligned()
 
 	if(g_convMode == CONV_OBJECT)
 		glEnable(GL_BLEND);
-	glBlendFunc(GL_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 #else
 	//TODO: Bind to FBO color buffer texture object
 	//TODO: Apply convolusion program
@@ -611,14 +611,14 @@ void drawParticles()
 
 	glBindBuffer(GL_ARRAY_BUFFER, g_paramsVBO);
 	glVertexAttribPointer(g_attribParam, 2, GL_FLOAT, false, 0, 0);
+	glBindBuffer(GL_ARRAY_BUFFER, g_vertVBO);
 	glVertexPointer(2, GL_FLOAT, 0, 0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glEnableVertexAttribArray(g_attribParam);
 	glDrawArrays(GL_POINTS, 0, 8000);
 	glDisableVertexAttribArray(g_attribParam);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	//glCallList(g_particlesList);
 	
 	glDepthMask(true);
 	glDisable(GL_BLEND);
@@ -666,9 +666,14 @@ void initParticles()
 
 	// Transfer particle data to GPU
 	glGenBuffers(1, &g_paramsVBO);	
+	glGenBuffers(1, &g_vertVBO);	
 	glBindBuffer(GL_ARRAY_BUFFER, g_paramsVBO);
 	glBufferData(GL_ARRAY_BUFFER, 8000*2*4, params, GL_STATIC_DRAW);		
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ARRAY_BUFFER, g_vertVBO);
+	glBufferData(GL_ARRAY_BUFFER, 8000*2*4, params, GL_STATIC_DRAW);		
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
 }
 
 void initCubemap() 

@@ -558,7 +558,7 @@ void init()
 	initTexture();
 	initOpenCL();
 	initShaders();
-	initDebug();
+	//initDebug();
 }
 
 // ============================== GLUT Callbacks =========================

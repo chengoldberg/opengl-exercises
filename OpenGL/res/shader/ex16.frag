@@ -11,4 +11,4 @@ void main()
 	float ndcDepth = sample.w;	
 	// Transform from NDC to viewport using depthrange
 	gl_FragDepth = ((gl_DepthRange.diff * ndcDepth) + gl_DepthRange.near + gl_DepthRange.far) / 2.0;
-};
+}
