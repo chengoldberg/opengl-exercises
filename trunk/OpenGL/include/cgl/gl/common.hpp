@@ -13,6 +13,8 @@
 
 namespace cgl
 {
+	bool loadMeshFromOffFile(std::string fileName, std::vector<glm::vec3>& vertices, std::vector<glm::ivec3>& triangles) ;
+		
 	class Shader
 	{
 	protected:
@@ -213,6 +215,23 @@ namespace cgl
 			_faces = faces;
 		}
 
+		void init(const std::vector<glm::ivec3>& faces)
+		{
+			std::vector<GLuint> vec((GLuint*) faces.data(), (GLuint*) faces.data() + faces.size()*3);
+			init(vec);
+		}
+
+		void init(std::string _meshFilepath, GLuint program)
+		{
+			std::vector<glm::vec3> vertices;
+			std::vector<glm::ivec3> triangles;
+			loadMeshFromOffFile(_meshFilepath, vertices, triangles);	
+			init(triangles);
+			addAttrib("aPosition", 3, vertices.data(), vertices.size()*sizeof(glm::vec3));
+			initAttribLocs(program);
+			initBuffers();
+		}
+
 		SimpleMesh* addAttrib(std::string name, unsigned int componentsNum, void* clientBufferPtr, int bufferSize, GLuint type = GL_FLOAT)
 		{
 			if(_attribs.empty())
@@ -244,8 +263,18 @@ namespace cgl
 					_attribLocs[i] = dict[_attribs[i].name];
 				else
 					_attribLocs[i] = INVALID_ATTRIB_LOC;
+			}		
+		}
+
+		void initAttribLocs(GLuint program) 
+		{
+			_attribLocs.resize(_attribs.size());
+			for(unsigned int i=0; i<_attribs.size(); ++i)
+			{				
+				_attribLocs[i] = glGetAttribLocation(program, _attribs[i].name.c_str());
 			}
 		}
+
 		void setAttribLocs(std::vector<GLuint> val) { _attribLocs = val;}
 		void setDrawMode(GLuint val) { _drawMode = val;}
 
