@@ -1,0 +1,1 @@
+This project contains complete and partial exercises I occasionally use for instructing my OpenGL courses.
